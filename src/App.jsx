@@ -24,6 +24,30 @@ async function fetchData(url) {
   return JSON.parse(text);
 }
 
+// ── 判斷上市/上櫃/興櫃 ──────────────────────────────────────
+function getMarketType(code) {
+  const c = String(code).replace(/['"]/g,"").trim();
+  // 含英文且非ETF開頭 → 興櫃
+  if (/[A-Za-z]/.test(c) && !c.startsWith("00")) return "興櫃";
+  const n = parseInt(c) || 0;
+  // ETF (00開頭5碼以上)
+  if (c.startsWith("00") && c.length >= 5) return "上市";
+  // 上市範圍
+  if (n >= 1000 && n <= 2999) return "上市";
+  if (n >= 4000 && n <= 4099) return "上市";
+  if (n >= 5000 && n <= 5099) return "上市";
+  if (n >= 6000 && n <= 6099) return "上市";
+  // 上櫃範圍
+  if (n >= 3000 && n <= 3999) return "上櫃";
+  if (n >= 4100 && n <= 4999) return "上櫃";
+  if (n >= 5100 && n <= 5999) return "上櫃";
+  if (n >= 6100 && n <= 6999) return "上櫃";
+  if (n >= 7000 && n <= 8999) return "上櫃";
+  // 興櫃
+  if (n >= 9000) return "興櫃";
+  return "上市";
+}
+
 // ── 資料轉換：行情 ───────────────────────────────────────────
 function rowsToStockMap(rows) {
   const map = {};
@@ -39,11 +63,12 @@ function rowsToStockMap(rows) {
     const ch        = +(price * factor / (1 + factor)).toFixed(2);
     map[code] = {
       price, change: ch, changePct: chgPct,
-      name:    (r["公司名稱"]    || "").trim(),
-      industry:(r["產業類別"]    || "").trim(),
-      invest:  r["投信買賣超"]   || "0",
-      foreign: r["外資買賣超"]   || "0",
-      dealer:  r["自營買賣超"]   || "0",
+      name:      (r["公司名稱"]    || "").trim(),
+      industry:  (r["產業類別"]    || "").trim(),
+      marketType: getMarketType(code),
+      invest:     r["投信買賣超"]   || "0",
+      foreign:    r["外資買賣超"]   || "0",
+      dealer:     r["自營買賣超"]   || "0",
       inst3:      r["三大法人合計"] || "0",
       pe:         r["本益比"]       || "",
       pb:         r["股價淨值比"]   || "",
@@ -217,7 +242,7 @@ const STOCK_DB = {
 };
 
 
-const THEMES=["全部","AI推薦","AI半導體","先進封裝","AI晶片","AI伺服器","光通訊","AI散熱","電動車","光學鏡頭","AI+電信","AI+機器人","記憶體","高息ETF","指數ETF","金融股","航運","塑化","零售消費","鋼鐵傳產","生技醫療"];
+const THEMES=["AI推薦","上市","上櫃","興櫃","AI半導體","先進封裝","AI晶片","AI伺服器","光通訊","AI散熱","電動車","光學鏡頭","AI+電信","AI+機器人","記憶體","高息ETF","指數ETF","金融股","航運","塑化","零售消費","鋼鐵傳產","生技醫療"];
 
 const AI_PICKS=[
   {code:"2330",reason:"台積電法說上調資本支出，CoPoS量子AI訂單利多"},
@@ -345,6 +370,10 @@ function Card({ s, onSelect }) {
         <div style={{flex:1,minWidth:0}}>
           <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:4,flexWrap:"wrap"}}>
             <span style={{fontFamily:"monospace",color:"#555",fontSize:11}}>{s.code}</span>
+            {s.marketType && <span style={{fontSize:9,padding:"2px 6px",borderRadius:10,fontWeight:700,
+              background:s.marketType==="上市"?"rgba(0,119,255,0.15)":s.marketType==="上櫃"?"rgba(0,210,150,0.15)":"rgba(255,209,102,0.15)",
+              color:s.marketType==="上市"?"#4da6ff":s.marketType==="上櫃"?"#00d296":"#ffd166"
+            }}>{s.marketType}</span>}
             <span className="tag">{s.theme}</span>
             {Math.abs(s.changePct) >= 9.5 && <span style={{fontSize:10,color:"#ff9f40",fontWeight:700}}>🔥漲停</span>}
             {s.yld > 0 && <span style={{fontSize:10,color:"#ffd166"}}>💰{s.yld}%</span>}
@@ -811,7 +840,7 @@ function buildFallback(s){
 // Main App
 // ════════════════════════════════════════════════════════════
 export default function App() {
-  const [filter,     setFilter]     = useState("全部");
+  const [filter,     setFilter]     = useState("上市");
   const [query,      setQuery]      = useState("");
   const [selected,   setSelected]   = useState(null);
   const [analysis,   setAnalysis]   = useState("");
@@ -924,6 +953,7 @@ export default function App() {
         roe:       +((8 + Math.random() * 28).toFixed(1)),
         priceData: genPD(price || 1),
         // 行情
+        marketType:  mkt?.marketType || getMarketType(code),
         invest:  mkt?.invest  || "",
         foreign: mkt?.foreign || "",
         dealer:  mkt?.dealer  || "",
@@ -959,10 +989,11 @@ export default function App() {
   }, [stockMap, divMap, aiSheetMap, dataDate]);
   const search = useMemo(() => makeSearchFn(ALL_STOCKS), [ALL_STOCKS]);
 
+  const MARKET_TYPES = ["上市","上櫃","興櫃"];
   const displayList = useMemo(() => {
     if (filter === "AI推薦") return aiPicks;
     if (query.trim()) return search(query);
-    if (filter === "全部") return ALL_STOCKS;
+    if (MARKET_TYPES.includes(filter)) return ALL_STOCKS.filter(s => s.marketType === filter);
     return ALL_STOCKS.filter(s => s.theme === filter);
   }, [filter, query, aiPicks, ALL_STOCKS, search]);
 
@@ -1078,7 +1109,15 @@ export default function App() {
           <div className="filter-row">
             {THEMES.map(t => (
               <button key={t} className={`filter-btn ${filter===t?"active":""}`}
-                onClick={() => { setFilter(t); if (t==="AI推薦" && !aiPicks.length) handleAIScan(); }}>
+                onClick={() => {
+                  setFilter(t);
+                  if (t==="AI推薦" && !aiPicks.length) handleAIScan();
+                }}
+                style={t==="上市"||t==="上櫃"||t==="興櫃" ? {
+                  borderColor: filter===t ? (t==="上市"?"#4da6ff":t==="上櫃"?"#00d296":"#ffd166") : "rgba(255,255,255,0.08)",
+                  color: filter===t ? (t==="上市"?"#4da6ff":t==="上櫃"?"#00d296":"#ffd166") : "#888",
+                  background: filter===t ? (t==="上市"?"rgba(0,119,255,0.12)":t==="上櫃"?"rgba(0,210,150,0.12)":"rgba(255,209,102,0.12)") : "rgba(255,255,255,0.05)",
+                } : {}}>
                 {t}
               </button>
             ))}
