@@ -859,6 +859,7 @@ export default function App() {
   const [status,     setStatus]     = useState("載入中");
   const [dataDate,   setDataDate]   = useState("");
   const [debugMsg,   setDebugMsg]   = useState("");
+  const didScan = useRef(false);
 
   // ── 從 Apps Script 抓資料（JSONP，開啟時 + 按鈕觸發）──
   const loadData = useCallback(async () => {
@@ -879,7 +880,7 @@ export default function App() {
       if (aCnt) setAiSheetMap(aMap);
       setDataDate(json.updatedAt || "");
       setStatus("已更新");
-      didScan.current = false; // 資料更新後重新填充 aiPicks
+      didScan.current = false;
 
     } catch(err) {
       const msg = err.message || "未知錯誤";
@@ -891,7 +892,6 @@ export default function App() {
   }, []);
 
   // ALL_STOCKS 有資料時自動填充 aiPicks（用 ref 避免重複執行）
-  const didScan = useRef(false);
   useEffect(() => {
     if (ALL_STOCKS.length > 0 && !didScan.current) {
       didScan.current = true;
