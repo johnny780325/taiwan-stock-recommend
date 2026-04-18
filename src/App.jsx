@@ -628,11 +628,12 @@ export default function App() {
   // ── 試算表為主，STOCK_DB 補充題材/除息資訊 ──────────────────
   const ALL_STOCKS = useMemo(() => {
     // 優先用試算表行情（stockMap），沒有才用 STOCK_DB 內建
+    // 尚未載入時回傳空陣列
+    if (Object.keys(stockMap).length === 0 && Object.keys(divMap).length === 0) return [];
     const marketCodes = Object.keys(stockMap);
-    const dbCodes     = Object.keys(STOCK_DB);
 
-    // 合併：試算表全部 + STOCK_DB 裡試算表沒有的
-    const allCodes = [...new Set([...marketCodes, ...dbCodes])];
+    // 只用試算表資料，不補 STOCK_DB 內建
+    const allCodes = [...marketCodes];
 
     return allCodes.map(code => {
       const mkt = stockMap[code];    // 試算表行情
@@ -812,8 +813,8 @@ export default function App() {
 
         {/* 狀態列 */}
         <div style={{fontSize:10,marginBottom:8,display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
-          <span style={{color:status==="已更新"?"#00d296":status==="載入中"?"#ffd166":"#ff6b6b",fontWeight:700}}>
-            {status==="已更新"?"✅":status==="載入中"?"⏳":"⚠"} {status}
+          <span style={{color:status==="已更新"?"#00d296":status==="載入中"?"#ffd166":status==="尚未載入"?"#555":"#ff6b6b",fontWeight:700}}>
+            {status==="已更新"?"✅":status==="載入中"?"⏳":status==="尚未載入"?"📡":"⚠"} {status}
           </span>
           {dataDate && <span style={{color:"#333"}}>{dataDate}</span>}
           {debugMsg && <span style={{color:"#666",fontSize:9,display:"block",width:"100%",marginTop:2}}>{debugMsg}</span>}
@@ -859,10 +860,20 @@ export default function App() {
             <div style={{color:"#00d296",fontSize:13,fontWeight:700}}>AI 精選推薦股...</div>
           </div>
         ) : displayList.length === 0 ? (
-          <div style={{textAlign:"center",color:"#444",fontSize:13,marginTop:60}}>
-            <div style={{fontSize:36,marginBottom:12}}>🔍</div>
-            找不到「{query}」<br/>
-            <span style={{fontSize:11,color:"#333"}}>試試：2330、台積電、ETF、00919、長榮</span>
+          <div style={{textAlign:"center",marginTop:80,padding:"0 24px"}}>
+            {status === "載入中" ? (
+              <>
+                <div className="spinner" style={{width:48,height:48,borderWidth:4,margin:"0 auto 20px"}}/>
+                <div style={{color:"#00d296",fontSize:14,fontWeight:700}}>載入資料中...</div>
+                <div style={{color:"#555",fontSize:11,marginTop:8}}>約需 5~15 秒</div>
+              </>
+            ) : (
+              <>
+                <div style={{fontSize:36,marginBottom:12}}>🔍</div>
+                <div style={{color:"#444",fontSize:13}}>找不到「{query}」</div>
+                <div style={{fontSize:11,color:"#333",marginTop:6}}>試試：2330、台積電、ETF、00919、長榮</div>
+              </>
+            )}
           </div>
         ) : (
           displayList.map((s, i) => (
