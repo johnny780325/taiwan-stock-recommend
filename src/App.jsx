@@ -522,24 +522,44 @@ function BrokerChart({ brokers }) {
   );
 }
 
-// 抓證交所券商分點資料
+// 抓證交所券商分點資料（多個 proxy 備援）
 async function fetchBrokers(code) {
-  // 用 CORS proxy 打證交所
-  const url = `https://api.allorigins.win/get?url=${encodeURIComponent(
-    `https://www.twse.com.tw/rwd/zh/brokerInfo/TWT38U?selectType=S&stockNo=${code}&response=json`
-  )}`;
-  const res  = await fetch(url);
-  const wrap = await res.json();
-  const json = JSON.parse(wrap.contents);
-  if (!json?.data?.length) return [];
-  // json.data 格式：[券商代號, 券商名稱, 買張, 賣張, 買賣差]
-  return json.data.map(r => ({
-    id:   r[0] || "",
-    name: r[1] || "",
-    buy:  r[2]?.replace(/,/g,"") || "0",
-    sell: r[3]?.replace(/,/g,"") || "0",
-    diff: r[4]?.replace(/,/g,"") || "0",
-  })).filter(b => parseFloat(b.buy) > 0 || parseFloat(b.sell) > 0);
+  const target = `https://www.twse.com.tw/rwd/zh/brokerInfo/TWT38U?selectType=S&stockNo=${code}&response=json`;
+
+  const proxies = [
+    `https://corsproxy.io/?${encodeURIComponent(target)}`,
+    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(target)}`,
+    `https://thingproxy.freeboard.io/fetch/${target}`,
+  ];
+
+  let lastErr = "";
+  for (const url of proxies) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) { lastErr = "HTTP " + res.status; continue; }
+      const text = await res.text();
+      // 有些 proxy 直接回傳 JSON，有些包在 contents 裡
+      let json;
+      try {
+        const raw = JSON.parse(text);
+        json = raw.contents ? JSON.parse(raw.contents) : raw;
+      } catch {
+        lastErr = "JSON parse error"; continue;
+      }
+      if (!json?.data?.length) return [];
+      return json.data.map(r => ({
+        id:   r[0] || "",
+        name: r[1] || "",
+        buy:  String(r[2]||"0").replace(/,/g,""),
+        sell: String(r[3]||"0").replace(/,/g,""),
+        diff: String(r[4]||"0").replace(/,/g,""),
+      })).filter(b => parseFloat(b.buy) > 0 || parseFloat(b.sell) > 0);
+    } catch(e) {
+      lastErr = e.message;
+      continue;
+    }
+  }
+  throw new Error("所有 proxy 失敗：" + lastErr);
 }
 
 function Modal({ s, onClose, analysis, loadingAI }) {
