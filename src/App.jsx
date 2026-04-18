@@ -359,7 +359,7 @@ function Card({ s, onSelect }) {
             <div style={{fontSize:s.price>=1000?14:18,fontWeight:900,fontFamily:"monospace",color:pc}}>${fmtP(s.price)}</div>
             <div style={{fontSize:11,color:pc}}>{up?"▲":"▼"}{Math.abs(s.changePct)}%</div>
           </div>
-          <Spark data={s.priceData} color={pc} uid={s.code}/>
+  
         </div>
       </div>
     </div>
