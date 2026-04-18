@@ -891,18 +891,6 @@ export default function App() {
     }
   }, []);
 
-  // ALL_STOCKS 有資料時自動填充 aiPicks（用 ref 避免重複執行）
-  useEffect(() => {
-    if (ALL_STOCKS.length > 0 && !didScan.current) {
-      didScan.current = true;
-      const picks = AI_PICKS.map(p => {
-        const s = ALL_STOCKS.find(x => x.code === p.code);
-        return s ? { ...s, aiReason: p.reason } : null;
-      }).filter(Boolean);
-      setAiPicks(picks);
-    }
-  }, [ALL_STOCKS]);
-
   // 開啟時自動載入
   useEffect(() => {
     const m = document.querySelector('meta[name="viewport"]');
@@ -1006,6 +994,18 @@ export default function App() {
       };
     }).filter(s => s.name || s.price > 0); // 過濾掉完全沒資料的
   }, [stockMap, divMap, aiSheetMap, dataDate]);
+  // ALL_STOCKS 有資料時自動填充 aiPicks
+  useEffect(() => {
+    if (ALL_STOCKS.length > 0 && !didScan.current) {
+      didScan.current = true;
+      const picks = AI_PICKS.map(p => {
+        const s = ALL_STOCKS.find(x => x.code === p.code);
+        return s ? { ...s, aiReason: p.reason } : null;
+      }).filter(Boolean);
+      setAiPicks(picks);
+    }
+  }, [ALL_STOCKS]);
+
   const search = useMemo(() => makeSearchFn(ALL_STOCKS), [ALL_STOCKS]);
 
   const displayList = useMemo(() => {
