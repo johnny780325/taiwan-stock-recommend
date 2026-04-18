@@ -459,10 +459,13 @@ function isForeign(name) {
   return FOREIGN_KEYWORDS.some(k => n.includes(k.toLowerCase()));
 }
 
+// 共用格式化函式
+const fmtBroker = n => Math.abs(n) >= 10000 ? (n/10000).toFixed(1)+"萬"
+                     : Math.abs(n) >= 1000  ? (n/1000).toFixed(1)+"K"
+                     : String(Math.round(n));
+
 function BrokerList({ items, color, maxV, label }) {
-  const fmt = n => Math.abs(n) >= 10000 ? (n/10000).toFixed(1)+"萬"
-                 : Math.abs(n) >= 1000  ? (n/1000).toFixed(1)+"K"
-                 : String(n);
+  const fmt = fmtBroker;
   const isPos = color === "#e05252";
   if (!items.length) return null;
   return (
@@ -496,7 +499,7 @@ function BrokerList({ items, color, maxV, label }) {
 
 function BrokerChart({ brokers }) {
   const [view, setView] = useState("all");
-
+  // ★ Hook 必須在條件判斷前呼叫，所以 early return 放在 useState 之後
   if (!brokers?.length) return null;
 
   const filtered = view === "foreign"
@@ -518,7 +521,7 @@ function BrokerChart({ brokers }) {
   const foreignBuy  = brokers.filter(b=>isForeign(b.name)).reduce((s,b)=>s+(parseFloat(b.buy)||0),0);
   const foreignSell = brokers.filter(b=>isForeign(b.name)).reduce((s,b)=>s+(parseFloat(b.sell)||0),0);
   const foreignNet  = foreignBuy - foreignSell;
-  const fmt = n => Math.abs(n)>=10000?(n/10000).toFixed(1)+"萬":Math.abs(n)>=1000?(n/1000).toFixed(1)+"K":String(Math.round(n));
+  const fmt = fmtBroker;
 
   return (
     <div>
@@ -534,12 +537,12 @@ function BrokerChart({ brokers }) {
 
       {/* 切換：全部/只看外資 */}
       <div style={{display:"flex",gap:6,marginBottom:12}}>
-        {[{k:"all",l:"全部券商"},{k:"foreign",l:"🌍 僅外資"}].map(({k,l}) => (
+        {[{k:"all",label:"全部券商"},{k:"foreign",label:"🌍 僅外資"}].map(({k,label:btnLabel}) => (
           <button key={k} onClick={()=>setView(k)}
             style={{background:view===k?"rgba(0,210,150,0.15)":"rgba(255,255,255,0.04)",
               border:`1px solid ${view===k?"#00d296":"rgba(255,255,255,0.08)"}`,
               color:view===k?"#00d296":"#666",padding:"4px 12px",borderRadius:20,fontSize:11,cursor:"pointer",fontWeight:view===k?700:400}}>
-            {l}
+            {btnLabel}
           </button>
         ))}
         <span style={{fontSize:10,color:"#333",alignSelf:"center",marginLeft:"auto"}}>共{filtered.length}家</span>
@@ -840,14 +843,14 @@ function buildFallback(s){
 // Main App
 // ════════════════════════════════════════════════════════════
 export default function App() {
-  const [filter,     setFilter]     = useState("AI推薦");
+  const [filter,     setFilter]     = useState("");
   const [query,      setQuery]      = useState("");
   const [selected,   setSelected]   = useState(null);
   const [analysis,   setAnalysis]   = useState("");
   const [loadAI,     setLoadAI]     = useState(false);
   const [aiPicks,    setAiPicks]    = useState([]);
   const [scanning,   setScanning]   = useState(false);
-  const [shouldScan,  setShouldScan]  = useState(false);
+
 
   // 三個工作表的資料 state
   const [stockMap,   setStockMap]   = useState({});
@@ -876,8 +879,7 @@ export default function App() {
       if (aCnt) setAiSheetMap(aMap);
       setDataDate(json.updatedAt || "");
       setStatus("已更新");
-      // 載入完自動更新 AI推薦清單
-      setShouldScan(true);
+
     } catch(err) {
       const msg = err.message || "未知錯誤";
       setDebugMsg("❌ " + msg);
@@ -886,18 +888,6 @@ export default function App() {
       setDataDate("");
     }
   }, []);
-
-  // 載入完成後自動執行 AI推薦
-  useEffect(() => {
-    if (shouldScan && ALL_STOCKS.length > 0) {
-      setShouldScan(false);
-      const picks = AI_PICKS.map(p => {
-        const s = ALL_STOCKS.find(x => x.code === p.code);
-        return s ? { ...s, aiReason: p.reason } : null;
-      }).filter(Boolean);
-      setAiPicks(picks);
-    }
-  }, [shouldScan, ALL_STOCKS]);
 
   // 開啟時自動載入
   useEffect(() => {
@@ -1007,6 +997,7 @@ export default function App() {
   const displayList = useMemo(() => {
     if (filter === "AI推薦") return aiPicks;
     if (query.trim()) return search(query);
+    if (!filter) return ALL_STOCKS;
     return ALL_STOCKS.filter(s => s.theme === filter);
   }, [filter, query, aiPicks, ALL_STOCKS, search]);
 
@@ -1120,7 +1111,9 @@ export default function App() {
         {/* 主題篩選 */}
         {!query && (
           <div className="filter-row">
-            {THEMES.map(t => (
+            <button className={`filter-btn ${filter===""?"active":""}`}
+              onClick={() => setFilter("")}>全部</button>
+          {THEMES.map(t => (
               <button key={t} className={`filter-btn ${filter===t?"active":""}`}
                 onClick={() => { setFilter(t); if (t==="AI推薦" && !aiPicks.length) handleAIScan(); }}>
                 {t}
