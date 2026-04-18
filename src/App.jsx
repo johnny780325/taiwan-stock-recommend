@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 
 // ══════════════════════════════════════════════════════════════
 // Apps Script Web App — 三個工作表統一入口
@@ -879,6 +879,7 @@ export default function App() {
       if (aCnt) setAiSheetMap(aMap);
       setDataDate(json.updatedAt || "");
       setStatus("已更新");
+      didScan.current = false; // 資料更新後重新填充 aiPicks
 
     } catch(err) {
       const msg = err.message || "未知錯誤";
@@ -888,6 +889,19 @@ export default function App() {
       setDataDate("");
     }
   }, []);
+
+  // ALL_STOCKS 有資料時自動填充 aiPicks（用 ref 避免重複執行）
+  const didScan = useRef(false);
+  useEffect(() => {
+    if (ALL_STOCKS.length > 0 && !didScan.current) {
+      didScan.current = true;
+      const picks = AI_PICKS.map(p => {
+        const s = ALL_STOCKS.find(x => x.code === p.code);
+        return s ? { ...s, aiReason: p.reason } : null;
+      }).filter(Boolean);
+      setAiPicks(picks);
+    }
+  }, [ALL_STOCKS]);
 
   // 開啟時自動載入
   useEffect(() => {
