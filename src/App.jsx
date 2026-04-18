@@ -417,46 +417,107 @@ function DivSection({ divs, price }) {
 }
 
 // ── Modal ────────────────────────────────────────────────────
+// 外資券商關鍵字
+const FOREIGN_KEYWORDS = [
+  "摩根","美林","高盛","瑞銀","花旗","匯豐","德意志","巴克萊","麥格理",
+  "瑞士信貸","法國巴黎","野村","大和","元大港","港商","外商",
+  "morgan","merrill","goldman","ubs","citi","hsbc","deutsche",
+  "barclays","macquarie","nomura","daiwa"
+];
+
+function isForeign(name) {
+  const n = (name||"").toLowerCase();
+  return FOREIGN_KEYWORDS.some(k => n.includes(k.toLowerCase()));
+}
+
+function BrokerList({ items, color, maxV, label }) {
+  const fmt = n => Math.abs(n) >= 10000 ? (n/10000).toFixed(1)+"萬"
+                 : Math.abs(n) >= 1000  ? (n/1000).toFixed(1)+"K"
+                 : String(n);
+  const isPos = color === "#e05252";
+  if (!items.length) return null;
+  return (
+    <div style={{marginBottom:14}}>
+      <div style={{fontSize:10,color,fontWeight:700,marginBottom:8}}>{label}</div>
+      {items.map((b,i) => {
+        const val = isPos ? parseFloat(b.buy)||0 : parseFloat(b.sell)||0;
+        const foreign = isForeign(b.name);
+        return (
+          <div key={i} style={{marginBottom:6}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
+              <div style={{display:"flex",alignItems:"center",gap:4}}>
+                {foreign && <span style={{fontSize:8,background:"rgba(123,97,255,0.2)",color:"#7b61ff",padding:"1px 5px",borderRadius:10,fontWeight:700}}>外資</span>}
+                <span style={{fontSize:11,color: foreign?"#c5b3ff":"#ccc"}}>{b.name}</span>
+              </div>
+              <span style={{fontSize:11,fontWeight:900,color,fontFamily:"monospace"}}>
+                {isPos?"+":"-"}{fmt(val)}
+              </span>
+            </div>
+            <div style={{height:3,background:"rgba(255,255,255,0.05)",borderRadius:2}}>
+              <div style={{height:"100%",width:`${val/maxV*100}%`,
+                background: foreign ? "linear-gradient(90deg,#7b61ff,"+color+")" : color,
+                borderRadius:2}}/>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function BrokerChart({ brokers }) {
+  const [view, setView] = useState("all");
+
   if (!brokers?.length) return null;
-  const buy  = brokers.filter(b => parseFloat(b.buy)  > 0).slice(0,5);
-  const sell = brokers.filter(b => parseFloat(b.sell) > 0).slice(0,5);
-  const maxV = Math.max(...[...buy,...sell].map(b => Math.max(parseFloat(b.buy)||0, parseFloat(b.sell)||0)), 1);
-  const fmt = n => n >= 1000 ? (n/1000).toFixed(1)+"K" : String(n);
+
+  const filtered = view === "foreign"
+    ? brokers.filter(b => isForeign(b.name))
+    : brokers;
+
+  const sorted = [...filtered].sort((a,b) => (parseFloat(b.diff)||0) - (parseFloat(a.diff)||0));
+  const buy  = sorted.filter(b => (parseFloat(b.diff)||0) > 0).slice(0,8);
+  const sell = [...filtered].sort((a,b) => (parseFloat(a.diff)||0) - (parseFloat(b.diff)||0))
+                .filter(b => (parseFloat(b.diff)||0) < 0).slice(0,8);
+
+  const maxV = Math.max(
+    ...buy.map(b => parseFloat(b.buy)||0),
+    ...sell.map(b => parseFloat(b.sell)||0),
+    1
+  );
+
+  // 外資合計
+  const foreignBuy  = brokers.filter(b=>isForeign(b.name)).reduce((s,b)=>s+(parseFloat(b.buy)||0),0);
+  const foreignSell = brokers.filter(b=>isForeign(b.name)).reduce((s,b)=>s+(parseFloat(b.sell)||0),0);
+  const foreignNet  = foreignBuy - foreignSell;
+  const fmt = n => Math.abs(n)>=10000?(n/10000).toFixed(1)+"萬":Math.abs(n)>=1000?(n/1000).toFixed(1)+"K":String(Math.round(n));
+
   return (
     <div>
-      {buy.length > 0 && (
-        <div style={{marginBottom:12}}>
-          <div style={{fontSize:10,color:"#e05252",fontWeight:700,marginBottom:6}}>▲ 主力買超券商</div>
-          {buy.map((b,i) => (
-            <div key={i} style={{marginBottom:5}}>
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
-                <span style={{fontSize:11,color:"#ccc"}}>{b.name}</span>
-                <span style={{fontSize:11,fontWeight:700,color:"#e05252",fontFamily:"monospace"}}>+{fmt(parseFloat(b.buy)||0)}</span>
-              </div>
-              <div style={{height:3,background:"rgba(255,255,255,0.05)",borderRadius:2}}>
-                <div style={{height:"100%",width:`${(parseFloat(b.buy)||0)/maxV*100}%`,background:"#e05252",borderRadius:2}}/>
-              </div>
-            </div>
-          ))}
+      {/* 外資合計摘要 */}
+      <div style={{background:"rgba(123,97,255,0.08)",border:"1px solid rgba(123,97,255,0.2)",borderRadius:10,padding:"10px 12px",marginBottom:12}}>
+        <div style={{fontSize:9,color:"#7b61ff",fontWeight:700,marginBottom:6}}>🌍 外資券商合計</div>
+        <div style={{display:"flex",gap:12}}>
+          <div><div style={{fontSize:9,color:"#555"}}>買超</div><div style={{fontSize:14,fontWeight:900,color:"#e05252",fontFamily:"monospace"}}>+{fmt(foreignBuy)}</div></div>
+          <div><div style={{fontSize:9,color:"#555"}}>賣超</div><div style={{fontSize:14,fontWeight:900,color:"#06d6a0",fontFamily:"monospace"}}>-{fmt(foreignSell)}</div></div>
+          <div><div style={{fontSize:9,color:"#555"}}>淨買超</div><div style={{fontSize:14,fontWeight:900,color:foreignNet>=0?"#e05252":"#06d6a0",fontFamily:"monospace"}}>{foreignNet>=0?"+":""}{fmt(foreignNet)}</div></div>
         </div>
-      )}
-      {sell.length > 0 && (
-        <div>
-          <div style={{fontSize:10,color:"#06d6a0",fontWeight:700,marginBottom:6}}>▼ 主力賣超券商</div>
-          {sell.map((b,i) => (
-            <div key={i} style={{marginBottom:5}}>
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
-                <span style={{fontSize:11,color:"#ccc"}}>{b.name}</span>
-                <span style={{fontSize:11,fontWeight:700,color:"#06d6a0",fontFamily:"monospace"}}>-{fmt(parseFloat(b.sell)||0)}</span>
-              </div>
-              <div style={{height:3,background:"rgba(255,255,255,0.05)",borderRadius:2}}>
-                <div style={{height:"100%",width:`${(parseFloat(b.sell)||0)/maxV*100}%`,background:"#06d6a0",borderRadius:2}}/>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      </div>
+
+      {/* 切換：全部/只看外資 */}
+      <div style={{display:"flex",gap:6,marginBottom:12}}>
+        {[{k:"all",l:"全部券商"},{k:"foreign",l:"🌍 僅外資"}].map(({k,l}) => (
+          <button key={k} onClick={()=>setView(k)}
+            style={{background:view===k?"rgba(0,210,150,0.15)":"rgba(255,255,255,0.04)",
+              border:`1px solid ${view===k?"#00d296":"rgba(255,255,255,0.08)"}`,
+              color:view===k?"#00d296":"#666",padding:"4px 12px",borderRadius:20,fontSize:11,cursor:"pointer",fontWeight:view===k?700:400}}>
+            {l}
+          </button>
+        ))}
+        <span style={{fontSize:10,color:"#333",alignSelf:"center",marginLeft:"auto"}}>共{filtered.length}家</span>
+      </div>
+
+      <BrokerList items={buy}  color="#e05252" maxV={maxV} label="▲ 買超券商 Top 8"/>
+      <BrokerList items={sell} color="#06d6a0" maxV={maxV} label="▼ 賣超券商 Top 8"/>
     </div>
   );
 }
