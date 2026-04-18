@@ -3,13 +3,25 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 // ══════════════════════════════════════════════════════════════
 // Apps Script Web App — 三個工作表統一入口
 // ══════════════════════════════════════════════════════════════
-const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbz9k2bTgkHr4Sv2OyxqaWjQhb31p8BIQmDyOCFdULqPmC4xrMrVA6Iimi08hsPZy726Xg/exec";
+const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzfDY70pU7LAEr9uMkqnvY-0wNR54qudMh7RIz05ECI3XExz_80_yNNt3EaOqCDu-nQUA/exec";
 
-// ── fetch 抓取 Apps Script（真實 React App 用 fetch 即可）──
+// ── fetch 抓取 Apps Script ───────────────────────────────────
+// Apps Script 會先 302 到 googleusercontent.com，fetch 會自動跟著跳轉
+// 回傳的若是 JSONP 格式（callback({...})），先剝掉 callback wrapper
 async function fetchData(url) {
-  const res = await fetch(url, { redirect: "follow" });
+  const res = await fetch(url, {
+    redirect: "follow",
+    headers: { "Accept": "application/json, text/javascript, */*" }
+  });
   if (!res.ok) throw new Error("HTTP " + res.status);
-  return await res.json();
+  const text = await res.text();
+  // 若是 JSONP 格式：callback({...}) 或 callback({...});
+  const jsonpMatch = text.match(/^[a-zA-Z_$][a-zA-Z0-9_$]*\s*\((.+)\)\s*;?\s*$/s);
+  if (jsonpMatch) {
+    return JSON.parse(jsonpMatch[1]);
+  }
+  // 純 JSON
+  return JSON.parse(text);
 }
 
 // ── 資料轉換：行情 ───────────────────────────────────────────
