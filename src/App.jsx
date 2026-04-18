@@ -843,7 +843,7 @@ function buildFallback(s){
 // Main App
 // ════════════════════════════════════════════════════════════
 export default function App() {
-  const [filter,     setFilter]     = useState("");
+  const [filter,     setFilter]     = useState("AI推薦");
   const [query,      setQuery]      = useState("");
   const [selected,   setSelected]   = useState(null);
   const [analysis,   setAnalysis]   = useState("");
@@ -997,7 +997,6 @@ export default function App() {
   const displayList = useMemo(() => {
     if (filter === "AI推薦") return aiPicks;
     if (query.trim()) return search(query);
-    if (!filter) return ALL_STOCKS;
     return ALL_STOCKS.filter(s => s.theme === filter);
   }, [filter, query, aiPicks, ALL_STOCKS, search]);
 
@@ -1111,9 +1110,7 @@ export default function App() {
         {/* 主題篩選 */}
         {!query && (
           <div className="filter-row">
-            <button className={`filter-btn ${filter===""?"active":""}`}
-              onClick={() => setFilter("")}>全部</button>
-          {THEMES.map(t => (
+            {THEMES.map(t => (
               <button key={t} className={`filter-btn ${filter===t?"active":""}`}
                 onClick={() => { setFilter(t); if (t==="AI推薦" && !aiPicks.length) handleAIScan(); }}>
                 {t}
