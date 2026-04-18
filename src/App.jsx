@@ -601,9 +601,7 @@ export default function App() {
       const dMap = dCnt ? rowsToDivMap(json.dividend)  : {};
       const aMap = aCnt ? rowsToAIMap(json.ai)         : {};
       const matched = Object.keys(mMap).filter(k => STOCK_DB[k]).length;
-      const mKeys = Object.keys(mMap).slice(0,3).join(",");
-      const dbKeys = Object.keys(STOCK_DB).slice(0,3).join(",");
-      setDebugMsg(`✅ market:${mCnt} matched:${matched} div:${dCnt} ai:${aCnt} | 試算表代號範例:${mKeys} | STOCK_DB範例:${dbKeys}`);
+      setDebugMsg(""); // 成功時清空，不顯示 log
       if (mCnt) setStockMap(mMap);
       if (dCnt) setDivMap(dMap);
       if (aCnt) setAiSheetMap(aMap);
@@ -817,7 +815,7 @@ export default function App() {
             {status==="已更新"?"✅":status==="載入中"?"⏳":status==="尚未載入"?"📡":"⚠"} {status}
           </span>
           {dataDate && <span style={{color:"#333"}}>{dataDate}</span>}
-          {debugMsg && <span style={{color:"#666",fontSize:9,display:"block",width:"100%",marginTop:2}}>{debugMsg}</span>}
+          {status !== "已更新" && debugMsg && <span style={{color:status==="失敗（使用內建資料）"?"#ff6b6b":"#666",fontSize:9,display:"block",width:"100%",marginTop:2}}>{debugMsg}</span>}
           {hotCnt > 0 && <span style={{color:"#ff9f40"}}>🔥{hotCnt}漲停</span>}
           {aiCnt  > 0 && <span style={{color:"#7b61ff"}}>🤖AI{aiCnt}檔</span>}
           <span style={{color:"#222"}}>共{ALL_STOCKS.length}檔</span>
