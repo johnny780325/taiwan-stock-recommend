@@ -284,18 +284,30 @@ function buildBase(code, extra = {}) {
   };
 }
 
+// 搜尋函式：在 App 內用 ALL_STOCKS 即時搜尋（支援試算表全部 2351 筆）
+// 靜態索引僅供 STOCK_DB 的別名搜尋
 const SEARCH_IDX = Object.entries(STOCK_DB).map(([code, d]) => {
-  const terms = [code, d.n, ...(d.alias||[]), d.th, d.sc].map(t => t.toLowerCase());
-  return { code, terms };
-}).filter(x => x.code);
+  const alias = (d.alias||[]).map(t => t.toLowerCase());
+  return { code, alias };
+});
 
-function search(q) {
-  if (!q.trim()) return [];
-  const lq = q.trim().toLowerCase();
-  return SEARCH_IDX
-    .filter(({ terms }) => terms.some(t => t.includes(lq)))
-    .map(({ code }) => buildBase(code))
-    .filter(Boolean);
+function makeSearchFn(allStocks) {
+  return function search(q) {
+    if (!q.trim()) return [];
+    const lq = q.trim().toLowerCase();
+    return allStocks.filter(s => {
+      if (!s) return false;
+      // 代號、名稱直接比對
+      if (s.code.toLowerCase().includes(lq)) return true;
+      if (s.name.toLowerCase().includes(lq)) return true;
+      if (s.theme.toLowerCase().includes(lq)) return true;
+      if (s.sector.toLowerCase().includes(lq)) return true;
+      // STOCK_DB 別名
+      const dbEntry = SEARCH_IDX.find(x => x.code === s.code);
+      if (dbEntry?.alias.some(a => a.includes(lq))) return true;
+      return false;
+    });
+  };
 }
 
 function calcLastBuy(ex){if(!ex||ex.includes("預計")||ex.length<7)return"─";try{const p=ex.replace(/\//g,"-").split("-"),d=new Date(`${p[0]}-${p[1].padStart(2,"0")}-${p[2].padStart(2,"0")}`);d.setDate(d.getDate()-1);while(d.getDay()===0||d.getDay()===6)d.setDate(d.getDate()-1);return`${d.getMonth()+1}/${d.getDate()}`;}catch{return"─";}}
@@ -613,85 +625,103 @@ export default function App() {
     loadData();
   }, [loadData]);
 
-  // ── 合併三個工作表 + STOCK_DB ──────────────────────────────
+  // ── 試算表為主，STOCK_DB 補充題材/除息資訊 ──────────────────
   const ALL_STOCKS = useMemo(() => {
-    return Object.keys(STOCK_DB).map(code => {
-      const mkt = stockMap[code];
-      const div = divMap[code];
-      const ai  = aiSheetMap[code];
-      const d   = STOCK_DB[code];
+    // 優先用試算表行情（stockMap），沒有才用 STOCK_DB 內建
+    const marketCodes = Object.keys(stockMap);
+    const dbCodes     = Object.keys(STOCK_DB);
+
+    // 合併：試算表全部 + STOCK_DB 裡試算表沒有的
+    const allCodes = [...new Set([...marketCodes, ...dbCodes])];
+
+    return allCodes.map(code => {
+      const mkt = stockMap[code];    // 試算表行情
+      const div = divMap[code];      // 試算表除權息
+      const ai  = aiSheetMap[code];  // 試算表AI分析
+      const db  = STOCK_DB[code];    // STOCK_DB（題材/別名/除息歷史）
+
+      // 名稱：試算表 > STOCK_DB
+      const name = (mkt?.name && mkt.name !== "") ? mkt.name
+                 : (db?.n || "");
+
+      // 題材：STOCK_DB > AI工作表 > 產業類別
+      const theme  = db?.th  || ai?.sector || mkt?.industry || "其他";
+      const sector = db?.sc  || mkt?.industry || "";
+
+      // 股價：★ 完全用試算表，沒有才用 STOCK_DB
+      const price     = mkt?.price > 0 ? mkt.price : (db?.px || 0);
+      const change    = mkt?.price > 0 ? mkt.change    : (db?.ch || 0);
+      const changePct = mkt?.price > 0 ? mkt.changePct : (db?.pct || 0);
 
       // 殖利率：除權息工作表 > STOCK_DB
       const yldStr = div?.yld || "";
-      const yld    = yldStr ? parseFloat(yldStr) : (d.divs?.[0]?.yld ?? 0);
+      const yld    = yldStr ? parseFloat(yldStr) : (db?.divs?.[0]?.yld ?? 0);
 
-      // 除息：若有試算表資料就優先用，保留 STOCK_DB 其餘紀錄
-      const divs = (div?.cash && div.cash !== "0") ? [
-        { year:"2026", exDate:div.exDivDate||"", cash:parseFloat(div.cash)||0, yld, lastBuy:"", payDate:div.payDate||"" },
-        ...(d.divs?.slice(1) || [])
-      ] : (d.divs || []);
+      // 除息紀錄：除權息工作表（最新）+ STOCK_DB（歷史）
+      const divs = (div?.cash && div.cash !== "0" && div.cash !== "") ? [
+        {
+          year: "2026", exDate: div.exDivDate || "", payDate: div.payDate || "",
+          cash: parseFloat(div.cash) || 0, yld, lastBuy: ""
+        },
+        ...(db?.divs?.slice(1) || [])
+      ] : (db?.divs || []);
 
-      const aiReason = ai?.aiComment?.slice(0, 45) || undefined;
+      // PE
+      const peRaw = parseFloat(mkt?.pe) || parseFloat((15 + Math.random() * 50).toFixed(1));
+      const pe    = peRaw;
+      const peStatus = pe > 45 ? "偏高" : pe > 25 ? "合理" : "偏低";
+      const peColor  = pe > 45 ? "#ff6b6b" : pe > 25 ? "#ffd166" : "#06d6a0";
 
-      // 行情資料存在 → 覆蓋股價
-      if (mkt && mkt.price > 0) {
-        const pe = parseFloat(mkt.pe) || parseFloat((15 + Math.random() * 50).toFixed(1));
-        return {
-          code, name: d.n, theme: d.th, sector: d.sc,
-          price: mkt.price, change: mkt.change, changePct: mkt.changePct,
-          divs, yld, pe,
-          eps: +(mkt.price / pe).toFixed(2),
-          revGrowth: +((-5 + Math.random() * 50).toFixed(1)),
-          margin:    +((8 + Math.random() * 40).toFixed(1)),
-          roe:       +((8 + Math.random() * 28).toFixed(1)),
-          priceData: genPD(mkt.price),
-          peStatus: pe > 45 ? "偏高" : pe > 25 ? "合理" : "偏低",
-          peColor:  pe > 45 ? "#ff6b6b" : pe > 25 ? "#ffd166" : "#06d6a0",
-          // 行情
-          invest: mkt.invest, foreign: mkt.foreign,
-          dealer: mkt.dealer, inst3: mkt.inst3,
-          // 除權息
-          cash: div?.cash||"", exDivDate: div?.exDivDate||"",
-          count10y: div?.count10y||"", avg3y: div?.avg3y||"",
-          avg10y: div?.avg10y||"", insiderPct: div?.insiderPct||"",
-          q1eps: div?.q1eps||"", q2eps: div?.q2eps||"",
-          q3eps: div?.q3eps||"", cumulEps: div?.cumulEps||"",
-          eps2: div?.eps||"",
-          // AI
-          aiScore: ai?.aiScore||"", aiComment: ai?.aiComment||"",
-          mgmtScore: ai?.mgmtScore||"", mgmtLabel: ai?.mgmtLabel||"",
-          mgmtNote: ai?.mgmtNote||"", advantage: ai?.advantage||"",
-          risk: ai?.risk||"",
-          aiReason, dataDate,
-        };
-      }
+      // AI 推薦理由：AI工作表 > STOCK_DB AI_PICKS（不在此處理，在 handleAIScan）
+      const aiComment = ai?.aiComment || "";
+      const aiReason  = aiComment ? aiComment.slice(0, 45) : undefined;
 
-      // 無行情 → 用內建
-      const base = buildBase(code);
-      if (!base) return null;
       return {
-        ...base, divs, yld, aiReason,
-        invest:"", foreign:"", dealer:"", inst3:"",
-        cash: div?.cash||"", exDivDate: div?.exDivDate||"",
-        count10y: div?.count10y||"", avg3y: div?.avg3y||"",
-        avg10y: div?.avg10y||"", insiderPct: div?.insiderPct||"",
-        q1eps: div?.q1eps||"", q2eps: div?.q2eps||"",
-        q3eps: div?.q3eps||"", cumulEps: div?.cumulEps||"",
-        eps2: div?.eps||"",
-        aiScore: ai?.aiScore||"", aiComment: ai?.aiComment||"",
-        mgmtScore: ai?.mgmtScore||"", mgmtLabel: ai?.mgmtLabel||"",
-        mgmtNote: ai?.mgmtNote||"", advantage: ai?.advantage||"",
-        risk: ai?.risk||"", dataDate,
+        code, name, theme, sector,
+        price, change, changePct,
+        divs, yld, pe, peStatus, peColor,
+        eps:       +(price / (pe || 1)).toFixed(2),
+        revGrowth: +((-5 + Math.random() * 50).toFixed(1)),
+        margin:    +((8 + Math.random() * 40).toFixed(1)),
+        roe:       +((8 + Math.random() * 28).toFixed(1)),
+        priceData: genPD(price || 1),
+        // 行情
+        invest:  mkt?.invest  || "",
+        foreign: mkt?.foreign || "",
+        dealer:  mkt?.dealer  || "",
+        inst3:   mkt?.inst3   || "",
+        // 除權息
+        cash:       div?.cash       || "",
+        exDivDate:  div?.exDivDate  || "",
+        count10y:   div?.count10y   || "",
+        avg3y:      div?.avg3y      || "",
+        avg10y:     div?.avg10y     || "",
+        insiderPct: div?.insiderPct || "",
+        q1eps:      div?.q1eps      || "",
+        q2eps:      div?.q2eps      || "",
+        q3eps:      div?.q3eps      || "",
+        cumulEps:   div?.cumulEps   || "",
+        eps2:       div?.eps        || "",
+        // AI分析
+        aiScore:   ai?.aiScore   || "",
+        aiComment: aiComment,
+        mgmtScore: ai?.mgmtScore || "",
+        mgmtLabel: ai?.mgmtLabel || "",
+        mgmtNote:  ai?.mgmtNote  || "",
+        advantage: ai?.advantage || "",
+        risk:      ai?.risk      || "",
+        aiReason, dataDate,
       };
-    }).filter(Boolean);
+    }).filter(s => s.name || s.price > 0); // 過濾掉完全沒資料的
   }, [stockMap, divMap, aiSheetMap, dataDate]);
+  const search = useMemo(() => makeSearchFn(ALL_STOCKS), [ALL_STOCKS]);
 
   const displayList = useMemo(() => {
     if (filter === "AI推薦") return aiPicks;
     if (query.trim()) return search(query);
     if (filter === "全部") return ALL_STOCKS;
     return ALL_STOCKS.filter(s => s.theme === filter);
-  }, [filter, query, aiPicks, ALL_STOCKS]);
+  }, [filter, query, aiPicks, ALL_STOCKS, search]);
 
   const handleAIScan = () => {
     setScanning(true); setQuery(""); setFilter("AI推薦"); setAiPicks([]);
