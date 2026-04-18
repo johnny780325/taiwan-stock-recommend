@@ -585,10 +585,16 @@ export default function App() {
       const mCnt = json.market?.length   || 0;
       const dCnt = json.dividend?.length || 0;
       const aCnt = json.ai?.length       || 0;
-      setDebugMsg(`✅ market:${mCnt} dividend:${dCnt} ai:${aCnt}`);
-      if (mCnt) setStockMap(rowsToStockMap(json.market));
-      if (dCnt) setDivMap(rowsToDivMap(json.dividend));
-      if (aCnt) setAiSheetMap(rowsToAIMap(json.ai));
+      const mMap = mCnt ? rowsToStockMap(json.market)  : {};
+      const dMap = dCnt ? rowsToDivMap(json.dividend)  : {};
+      const aMap = aCnt ? rowsToAIMap(json.ai)         : {};
+      const matched = Object.keys(mMap).filter(k => STOCK_DB[k]).length;
+      const mKeys = Object.keys(mMap).slice(0,3).join(",");
+      const dbKeys = Object.keys(STOCK_DB).slice(0,3).join(",");
+      setDebugMsg(`✅ market:${mCnt} matched:${matched} div:${dCnt} ai:${aCnt} | 試算表代號範例:${mKeys} | STOCK_DB範例:${dbKeys}`);
+      if (mCnt) setStockMap(mMap);
+      if (dCnt) setDivMap(dMap);
+      if (aCnt) setAiSheetMap(aMap);
       setDataDate(json.updatedAt || "");
       setStatus("已更新");
     } catch(err) {
