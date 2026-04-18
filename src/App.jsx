@@ -44,9 +44,14 @@ function rowsToStockMap(rows) {
       invest:  r["投信買賣超"]   || "0",
       foreign: r["外資買賣超"]   || "0",
       dealer:  r["自營買賣超"]   || "0",
-      inst3:   r["三大法人合計"] || "0",
-      pe:      r["本益比"]       || "",
-      pb:      r["股價淨值比"]   || "",
+      inst3:      r["三大法人合計"] || "0",
+      pe:         r["本益比"]       || "",
+      pb:         r["股價淨值比"]   || "",
+      marginBal:  r["融資餘額"]     || "",
+      marginRatio:r["融資使用率%"]  || "",
+      shortBal:   r["融券餘額"]     || "",
+      shortRatio: r["融券使用率%"]  || "",
+      hiLo:       r["創新高(1=是)"] || "",
     };
   });
   return map;
@@ -412,8 +417,87 @@ function DivSection({ divs, price }) {
 }
 
 // ── Modal ────────────────────────────────────────────────────
+function BrokerChart({ brokers }) {
+  if (!brokers?.length) return null;
+  const buy  = brokers.filter(b => parseFloat(b.buy)  > 0).slice(0,5);
+  const sell = brokers.filter(b => parseFloat(b.sell) > 0).slice(0,5);
+  const maxV = Math.max(...[...buy,...sell].map(b => Math.max(parseFloat(b.buy)||0, parseFloat(b.sell)||0)), 1);
+  const fmt = n => n >= 1000 ? (n/1000).toFixed(1)+"K" : String(n);
+  return (
+    <div>
+      {buy.length > 0 && (
+        <div style={{marginBottom:12}}>
+          <div style={{fontSize:10,color:"#e05252",fontWeight:700,marginBottom:6}}>▲ 主力買超券商</div>
+          {buy.map((b,i) => (
+            <div key={i} style={{marginBottom:5}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
+                <span style={{fontSize:11,color:"#ccc"}}>{b.name}</span>
+                <span style={{fontSize:11,fontWeight:700,color:"#e05252",fontFamily:"monospace"}}>+{fmt(parseFloat(b.buy)||0)}</span>
+              </div>
+              <div style={{height:3,background:"rgba(255,255,255,0.05)",borderRadius:2}}>
+                <div style={{height:"100%",width:`${(parseFloat(b.buy)||0)/maxV*100}%`,background:"#e05252",borderRadius:2}}/>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {sell.length > 0 && (
+        <div>
+          <div style={{fontSize:10,color:"#06d6a0",fontWeight:700,marginBottom:6}}>▼ 主力賣超券商</div>
+          {sell.map((b,i) => (
+            <div key={i} style={{marginBottom:5}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
+                <span style={{fontSize:11,color:"#ccc"}}>{b.name}</span>
+                <span style={{fontSize:11,fontWeight:700,color:"#06d6a0",fontFamily:"monospace"}}>-{fmt(parseFloat(b.sell)||0)}</span>
+              </div>
+              <div style={{height:3,background:"rgba(255,255,255,0.05)",borderRadius:2}}>
+                <div style={{height:"100%",width:`${(parseFloat(b.sell)||0)/maxV*100}%`,background:"#06d6a0",borderRadius:2}}/>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 抓證交所券商分點資料
+async function fetchBrokers(code) {
+  // 用 CORS proxy 打證交所
+  const url = `https://api.allorigins.win/get?url=${encodeURIComponent(
+    `https://www.twse.com.tw/rwd/zh/brokerInfo/TWT38U?selectType=S&stockNo=${code}&response=json`
+  )}`;
+  const res  = await fetch(url);
+  const wrap = await res.json();
+  const json = JSON.parse(wrap.contents);
+  if (!json?.data?.length) return [];
+  // json.data 格式：[券商代號, 券商名稱, 買張, 賣張, 買賣差]
+  return json.data.map(r => ({
+    id:   r[0] || "",
+    name: r[1] || "",
+    buy:  r[2]?.replace(/,/g,"") || "0",
+    sell: r[3]?.replace(/,/g,"") || "0",
+    diff: r[4]?.replace(/,/g,"") || "0",
+  })).filter(b => parseFloat(b.buy) > 0 || parseFloat(b.sell) > 0);
+}
+
 function Modal({ s, onClose, analysis, loadingAI }) {
   const up = s.changePct >= 0, pc = up ? "#e05252" : "#06d6a0";
+  const [brokers,     setBrokers]     = useState(null);
+  const [loadBroker,  setLoadBroker]  = useState(false);
+  const [brokerErr,   setBrokerErr]   = useState("");
+
+  const handleLoadBrokers = async () => {
+    setLoadBroker(true); setBrokerErr(""); setBrokers(null);
+    try {
+      const data = await fetchBrokers(s.code);
+      setBrokers(data);
+      if (!data.length) setBrokerErr("查無券商分點資料");
+    } catch(e) {
+      setBrokerErr("載入失敗：" + e.message);
+    }
+    setLoadBroker(false);
+  };
   return (
     <div className="overlay" onClick={onClose}>
       <div className="sheet" onClick={e => e.stopPropagation()}>
@@ -493,26 +577,100 @@ function Modal({ s, onClose, analysis, loadingAI }) {
             </div>
           )}
 
-          {/* 三大法人 */}
-          {(s.invest || s.foreign) && (
-            <div className="msec">
-              <div className="sl">三大法人買賣超（張）</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:6}}>
-                {[{l:"投信",v:s.invest},{l:"外資",v:s.foreign},{l:"自營",v:s.dealer},{l:"合計",v:s.inst3}].map(it => {
+          {/* 籌碼分析 */}
+          {(s.invest || s.foreign || s.dealer) && (() => {
+            const items = [
+              {l:"外資",v:s.foreign,icon:"🌍"},
+              {l:"投信",v:s.invest, icon:"🏦"},
+              {l:"自營",v:s.dealer, icon:"🏢"},
+              {l:"三大合計",v:s.inst3,icon:"📊"},
+            ];
+            const maxAbs = Math.max(...items.map(it => Math.abs(parseFloat(it.v)||0)), 1);
+            const fmt = n => {
+              const abs = Math.abs(n);
+              if (abs >= 10000) return (n/10000).toFixed(1)+"萬";
+              if (abs >= 1000)  return (n/1000).toFixed(1)+"K";
+              return String(n);
+            };
+            const bullCount = items.slice(0,3).filter(it => (parseFloat(it.v)||0) > 0).length;
+            const sentiment = bullCount >= 2 ? {text:"法人偏多", color:"#e05252"} : bullCount === 0 ? {text:"法人偏空", color:"#06d6a0"} : {text:"法人分歧", color:"#ffd166"};
+            return (
+              <div className="msec">
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                  <div className="sl" style={{marginBottom:0}}>籌碼分析</div>
+                  <span style={{fontSize:11,fontWeight:700,color:sentiment.color}}>{sentiment.text}</span>
+                </div>
+                {items.map(it => {
                   const n = parseFloat(it.v) || 0;
-                  const c = n > 0 ? "#e05252" : n < 0 ? "#06d6a0" : "#555";
+                  const isPos = n > 0;
+                  const c = isPos ? "#e05252" : n < 0 ? "#06d6a0" : "#444";
+                  const barW = Math.abs(n) / maxAbs * 100;
                   return (
-                    <div key={it.l} style={{background:"rgba(0,0,0,0.3)",borderRadius:10,padding:"8px 6px",textAlign:"center"}}>
-                      <div style={{fontSize:9,color:"#555",marginBottom:3}}>{it.l}</div>
-                      <div style={{fontSize:13,fontWeight:900,fontFamily:"monospace",color:c}}>
-                        {n > 0 ? "+" : ""}{n >= 1000 || n <= -1000 ? (n/1000).toFixed(1)+"K" : n}
+                    <div key={it.l} style={{marginBottom:8}}>
+                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                        <span style={{fontSize:11,color:"#666"}}>{it.icon} {it.l}</span>
+                        <span style={{fontSize:12,fontWeight:900,fontFamily:"monospace",color:c}}>
+                          {n > 0 ? "▲ +" : n < 0 ? "▼ " : ""}{fmt(n)} 張
+                        </span>
+                      </div>
+                      <div style={{height:4,background:"rgba(255,255,255,0.05)",borderRadius:2,overflow:"hidden"}}>
+                        <div style={{
+                          height:"100%",
+                          width:`${barW}%`,
+                          background: isPos ? "linear-gradient(90deg,#e05252,#ff8a80)" : "linear-gradient(90deg,#06d6a0,#69f0ae)",
+                          borderRadius:2,
+                          marginLeft: isPos ? 0 : "auto",
+                          float: isPos ? "left" : "right"
+                        }}/>
                       </div>
                     </div>
                   );
                 })}
+                {/* 融資券 */}
+                {(s.marginBal || s.shortBal) && (
+                  <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid rgba(255,255,255,0.06)"}}>
+                    <div style={{fontSize:9,color:"#444",fontWeight:700,letterSpacing:1,marginBottom:8}}>融資券</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                      {s.marginBal && <div style={{background:"rgba(224,82,82,0.06)",borderRadius:8,padding:"8px 10px"}}>
+                        <div style={{fontSize:9,color:"#555",marginBottom:3}}>融資餘額</div>
+                        <div style={{fontSize:13,fontWeight:700,color:"#e05252",fontFamily:"monospace"}}>{s.marginBal}</div>
+                        {s.marginRatio && <div style={{fontSize:9,color:"#555",marginTop:2}}>使用率 {(parseFloat(s.marginRatio)*100).toFixed(1)}%</div>}
+                      </div>}
+                      {s.shortBal && <div style={{background:"rgba(6,214,160,0.06)",borderRadius:8,padding:"8px 10px"}}>
+                        <div style={{fontSize:9,color:"#555",marginBottom:3}}>融券餘額</div>
+                        <div style={{fontSize:13,fontWeight:700,color:"#06d6a0",fontFamily:"monospace"}}>{s.shortBal}</div>
+                        {s.shortRatio && <div style={{fontSize:9,color:"#555",marginTop:2}}>使用率 {(parseFloat(s.shortRatio)*100).toFixed(1)}%</div>}
+                      </div>}
+                    </div>
+                  </div>
+                )}
               </div>
+            );
+          })()}
+
+          {/* 券商分點主力分析 */}
+          <div className="msec">
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <div className="sl" style={{marginBottom:0}}>券商分點主力分析</div>
+              {!brokers && !loadBroker && (
+                <button onClick={handleLoadBrokers}
+                  style={{background:"linear-gradient(135deg,#7b2fff,#0077ff)",color:"#fff",border:"none",padding:"5px 12px",borderRadius:20,fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                  載入分點
+                </button>
+              )}
             </div>
-          )}
+            {loadBroker && (
+              <div style={{display:"flex",alignItems:"center",gap:8,color:"#555",fontSize:12}}>
+                <div className="spinner"/>抓取證交所資料中...
+              </div>
+            )}
+            {brokerErr && <div style={{fontSize:11,color:"#ff6b6b"}}>{brokerErr}</div>}
+            {brokers && brokers.length > 0 && <BrokerChart brokers={brokers}/>}
+            {!brokers && !loadBroker && (
+              <div style={{fontSize:11,color:"#444"}}>點擊「載入分點」查看今日主力券商買賣超</div>
+            )}
+            <div style={{fontSize:9,color:"#333",marginTop:8}}>資料來源：台灣證交所 · 當日資料</div>
+          </div>
 
           {/* 配息穩定性 */}
           {(s.count10y || s.avg3y || s.insiderPct) && (
@@ -689,6 +847,11 @@ export default function App() {
         foreign: mkt?.foreign || "",
         dealer:  mkt?.dealer  || "",
         inst3:   mkt?.inst3   || "",
+        marginBal:   mkt?.marginBal   || "",
+        marginRatio: mkt?.marginRatio || "",
+        shortBal:    mkt?.shortBal    || "",
+        shortRatio:  mkt?.shortRatio  || "",
+        hiLo:        mkt?.hiLo        || "",
         // 除權息
         cash:       div?.cash       || "",
         exDivDate:  div?.exDivDate  || "",
