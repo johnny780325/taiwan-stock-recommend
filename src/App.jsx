@@ -65,7 +65,7 @@ function rowsToStockMap(rows) {
       price, change: ch, changePct: chgPct,
       name:      (r["公司名稱"]    || "").trim(),
       industry:  (r["產業類別"]    || "").trim(),
-      marketType: getMarketType(code),
+      marketType: (r["市場別"] && r["市場別"].trim()) ? r["市場別"].trim() : getMarketType(code),
       invest:     r["投信買賣超"]   || "0",
       foreign:    r["外資買賣超"]   || "0",
       dealer:     r["自營買賣超"]   || "0",
@@ -622,8 +622,12 @@ function Modal({ s, onClose, analysis, loadingAI }) {
 
           {/* Header */}
           <div style={{marginBottom:14}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
               <span style={{fontFamily:"monospace",color:"#555",fontSize:12}}>{s.code}</span>
+              {s.marketType && <span style={{fontSize:10,padding:"2px 8px",borderRadius:12,fontWeight:700,
+                background:s.marketType==="上市"?"rgba(0,119,255,0.15)":s.marketType==="上櫃"?"rgba(0,210,150,0.15)":"rgba(255,209,102,0.15)",
+                color:s.marketType==="上市"?"#4da6ff":s.marketType==="上櫃"?"#00d296":"#ffd166"
+              }}>{s.marketType}</span>}
               {s.theme && <span style={{background:"linear-gradient(135deg,#00d296,#0077ff)",color:"#000",fontSize:10,padding:"3px 10px",borderRadius:20,fontWeight:800}}>{s.theme}</span>}
               {s.sector && <span style={{fontSize:11,color:"#444"}}>{s.sector}</span>}
             </div>
@@ -843,6 +847,7 @@ function buildFallback(s){
 // Main App
 // ════════════════════════════════════════════════════════════
 export default function App() {
+  // ── State ────────────────────────────────────────────────────
   const [filter,     setFilter]     = useState("AI推薦");
   const [query,      setQuery]      = useState("");
   const [selected,   setSelected]   = useState(null);
@@ -850,9 +855,6 @@ export default function App() {
   const [loadAI,     setLoadAI]     = useState(false);
   const [aiPicks,    setAiPicks]    = useState([]);
   const [scanning,   setScanning]   = useState(false);
-
-
-  // 三個工作表的資料 state
   const [stockMap,   setStockMap]   = useState({});
   const [divMap,     setDivMap]     = useState({});
   const [aiSheetMap, setAiSheetMap] = useState({});
@@ -861,7 +863,7 @@ export default function App() {
   const [debugMsg,   setDebugMsg]   = useState("");
   const didScan = useRef(false);
 
-  // ── 從 Apps Script 抓資料（JSONP，開啟時 + 按鈕觸發）──
+  // ── 資料載入 ─────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     setStatus("載入中");
     setDebugMsg("抓取資料中...");
@@ -870,142 +872,93 @@ export default function App() {
       const mCnt = json.market?.length   || 0;
       const dCnt = json.dividend?.length || 0;
       const aCnt = json.ai?.length       || 0;
-      const mMap = mCnt ? rowsToStockMap(json.market)  : {};
-      const dMap = dCnt ? rowsToDivMap(json.dividend)  : {};
-      const aMap = aCnt ? rowsToAIMap(json.ai)         : {};
-      const matched = Object.keys(mMap).filter(k => STOCK_DB[k]).length;
-      setDebugMsg(""); // 成功時清空，不顯示 log
-      if (mCnt) setStockMap(mMap);
-      if (dCnt) setDivMap(dMap);
-      if (aCnt) setAiSheetMap(aMap);
+      if (mCnt) setStockMap(rowsToStockMap(json.market));
+      if (dCnt) setDivMap(rowsToDivMap(json.dividend));
+      if (aCnt) setAiSheetMap(rowsToAIMap(json.ai));
+      setDebugMsg("");
       setDataDate(json.updatedAt || "");
       setStatus("已更新");
       didScan.current = false;
-
     } catch(err) {
-      const msg = err.message || "未知錯誤";
-      setDebugMsg("❌ " + msg);
-      console.error("載入失敗:", msg);
+      setDebugMsg("❌ " + (err.message || "未知錯誤"));
       setStatus("失敗（使用內建資料）");
       setDataDate("");
     }
   }, []);
 
-  // 開啟時自動載入
+  // ── 開啟時自動載入 ────────────────────────────────────────────
   useEffect(() => {
     const m = document.querySelector('meta[name="viewport"]');
     if (m) m.content = "width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no";
     loadData();
   }, [loadData]);
 
-  // ── 試算表為主，STOCK_DB 補充題材/除息資訊 ──────────────────
+  // ── ALL_STOCKS（試算表為主）───────────────────────────────────
   const ALL_STOCKS = useMemo(() => {
-    // 優先用試算表行情（stockMap），沒有才用 STOCK_DB 內建
-    // 尚未載入時回傳空陣列
-    if (Object.keys(stockMap).length === 0 && Object.keys(divMap).length === 0) return [];
-    const marketCodes = Object.keys(stockMap);
-
-    // 只用試算表資料，不補 STOCK_DB 內建
-    const allCodes = [...marketCodes];
-
-    return allCodes.map(code => {
-      const mkt = stockMap[code];    // 試算表行情
-      const div = divMap[code];      // 試算表除權息
-      const ai  = aiSheetMap[code];  // 試算表AI分析
-      const db  = STOCK_DB[code];    // STOCK_DB（題材/別名/除息歷史）
-
-      // 名稱：試算表 > STOCK_DB
-      const name = (mkt?.name && mkt.name !== "") ? mkt.name
-                 : (db?.n || "");
-
-      // 題材：STOCK_DB > AI工作表 > 產業類別
-      const theme  = db?.th  || ai?.sector || mkt?.industry || "其他";
-      const sector = db?.sc  || mkt?.industry || "";
-
-      // 股價：★ 完全用試算表，沒有才用 STOCK_DB
-      const price     = mkt?.price > 0 ? mkt.price : (db?.px || 0);
-      const change    = mkt?.price > 0 ? mkt.change    : (db?.ch || 0);
-      const changePct = mkt?.price > 0 ? mkt.changePct : (db?.pct || 0);
-
-      // 殖利率：除權息工作表 > STOCK_DB
-      const yldStr = div?.yld || "";
-      const yld    = yldStr ? parseFloat(yldStr) : (db?.divs?.[0]?.yld ?? 0);
-
-      // 除息紀錄：除權息工作表（最新）+ STOCK_DB（歷史）
-      const divs = (div?.cash && div.cash !== "0" && div.cash !== "") ? [
-        {
-          year: "2026", exDate: div.exDivDate || "", payDate: div.payDate || "",
-          cash: parseFloat(div.cash) || 0, yld, lastBuy: ""
-        },
-        ...(db?.divs?.slice(1) || [])
-      ] : (db?.divs || []);
-
-      // PE
-      const peRaw = parseFloat(mkt?.pe) || parseFloat((15 + Math.random() * 50).toFixed(1));
-      const pe    = peRaw;
-      const peStatus = pe > 45 ? "偏高" : pe > 25 ? "合理" : "偏低";
-      const peColor  = pe > 45 ? "#ff6b6b" : pe > 25 ? "#ffd166" : "#06d6a0";
-
-      // AI 推薦理由：AI工作表 > STOCK_DB AI_PICKS（不在此處理，在 handleAIScan）
+    if (!Object.keys(stockMap).length && !Object.keys(divMap).length) return [];
+    return Object.keys(stockMap).map(code => {
+      const mkt = stockMap[code];
+      const div = divMap[code];
+      const ai  = aiSheetMap[code];
+      const db  = STOCK_DB[code];
+      const name    = (mkt?.name && mkt.name !== "") ? mkt.name : (db?.n || "");
+      const theme   = db?.th || ai?.sector || mkt?.industry || "其他";
+      const sector  = db?.sc || mkt?.industry || "";
+      const price     = mkt?.price > 0 ? mkt.price    : (db?.px  || 0);
+      const change    = mkt?.price > 0 ? mkt.change   : (db?.ch  || 0);
+      const changePct = mkt?.price > 0 ? mkt.changePct: (db?.pct || 0);
+      const yld     = div?.yld ? parseFloat(div.yld) : (db?.divs?.[0]?.yld ?? 0);
+      const divs    = (div?.cash && div.cash !== "0" && div.cash !== "") ? [
+        {year:"2026",exDate:div.exDivDate||"",payDate:div.payDate||"",cash:parseFloat(div.cash)||0,yld,lastBuy:""},
+        ...(db?.divs?.slice(1)||[])
+      ] : (db?.divs||[]);
+      const pe      = parseFloat(mkt?.pe) || 20;
       const aiComment = ai?.aiComment || "";
-      const aiReason  = aiComment ? aiComment.slice(0, 45) : undefined;
-
       return {
         code, name, theme, sector,
         price, change, changePct,
-        divs, yld, pe, peStatus, peColor,
-        eps:       +(price / (pe || 1)).toFixed(2),
-        revGrowth: +((-5 + Math.random() * 50).toFixed(1)),
-        margin:    +((8 + Math.random() * 40).toFixed(1)),
-        roe:       +((8 + Math.random() * 28).toFixed(1)),
-        priceData: genPD(price || 1),
-        // 行情
-        marketType:  mkt?.marketType || getMarketType(code),
-        invest:  mkt?.invest  || "",
-        foreign: mkt?.foreign || "",
-        dealer:  mkt?.dealer  || "",
-        inst3:   mkt?.inst3   || "",
-        marginBal:   mkt?.marginBal   || "",
-        marginRatio: mkt?.marginRatio || "",
-        shortBal:    mkt?.shortBal    || "",
-        shortRatio:  mkt?.shortRatio  || "",
-        hiLo:        mkt?.hiLo        || "",
-        // 除權息
-        cash:       div?.cash       || "",
-        exDivDate:  div?.exDivDate  || "",
-        count10y:   div?.count10y   || "",
-        avg3y:      div?.avg3y      || "",
-        avg10y:     div?.avg10y     || "",
-        insiderPct: div?.insiderPct || "",
-        q1eps:      div?.q1eps      || "",
-        q2eps:      div?.q2eps      || "",
-        q3eps:      div?.q3eps      || "",
-        cumulEps:   div?.cumulEps   || "",
-        eps2:       div?.eps        || "",
-        // AI分析
-        aiScore:   ai?.aiScore   || "",
-        aiComment: aiComment,
-        mgmtScore: ai?.mgmtScore || "",
-        mgmtLabel: ai?.mgmtLabel || "",
-        mgmtNote:  ai?.mgmtNote  || "",
-        advantage: ai?.advantage || "",
-        risk:      ai?.risk      || "",
-        aiReason, dataDate,
+        marketType: mkt?.marketType || getMarketType(code),
+        divs, yld, pe,
+        peStatus: pe>45?"偏高":pe>25?"合理":"偏低",
+        peColor:  pe>45?"#ff6b6b":pe>25?"#ffd166":"#06d6a0",
+        eps:      +(price/(pe||1)).toFixed(2),
+        revGrowth:+((-5+Math.random()*50).toFixed(1)),
+        margin:   +((8+Math.random()*40).toFixed(1)),
+        roe:      +((8+Math.random()*28).toFixed(1)),
+        priceData: genPD(price||1),
+        invest:  mkt?.invest||"",  foreign: mkt?.foreign||"",
+        dealer:  mkt?.dealer||"",  inst3:   mkt?.inst3||"",
+        marginBal:mkt?.marginBal||"", marginRatio:mkt?.marginRatio||"",
+        shortBal: mkt?.shortBal||"",  shortRatio: mkt?.shortRatio||"",
+        hiLo:    mkt?.hiLo||"",
+        cash:    div?.cash||"",    exDivDate:div?.exDivDate||"",
+        count10y:div?.count10y||"", avg3y:div?.avg3y||"", avg10y:div?.avg10y||"",
+        insiderPct:div?.insiderPct||"", q1eps:div?.q1eps||"", q2eps:div?.q2eps||"",
+        q3eps:div?.q3eps||"", cumulEps:div?.cumulEps||"", eps2:div?.eps||"",
+        aiScore:ai?.aiScore||"",   aiComment,
+        mgmtScore:ai?.mgmtScore||"", mgmtLabel:ai?.mgmtLabel||"",
+        mgmtNote:ai?.mgmtNote||"",   advantage:ai?.advantage||"",
+        risk:ai?.risk||"",
+        aiReason: aiComment ? aiComment.slice(0,45) : undefined,
+        dataDate,
       };
-    }).filter(s => s.name || s.price > 0); // 過濾掉完全沒資料的
+    }).filter(s => s.name || s.price > 0);
   }, [stockMap, divMap, aiSheetMap, dataDate]);
-  // ALL_STOCKS 有資料時自動填充 aiPicks
+
+  // ── aiPicks 自動填充（ALL_STOCKS 有資料後）───────────────────
   useEffect(() => {
     if (ALL_STOCKS.length > 0 && !didScan.current) {
       didScan.current = true;
-      const picks = AI_PICKS.map(p => {
-        const s = ALL_STOCKS.find(x => x.code === p.code);
-        return s ? { ...s, aiReason: p.reason } : null;
-      }).filter(Boolean);
-      setAiPicks(picks);
+      setAiPicks(
+        AI_PICKS.map(p => {
+          const s = ALL_STOCKS.find(x => x.code === p.code);
+          return s ? {...s, aiReason: p.reason} : null;
+        }).filter(Boolean)
+      );
     }
   }, [ALL_STOCKS]);
 
+  // ── 搜尋 & 顯示列表 ──────────────────────────────────────────
   const search = useMemo(() => makeSearchFn(ALL_STOCKS), [ALL_STOCKS]);
 
   const displayList = useMemo(() => {
@@ -1014,42 +967,37 @@ export default function App() {
     return ALL_STOCKS.filter(s => s.theme === filter);
   }, [filter, query, aiPicks, ALL_STOCKS, search]);
 
+  // ── AI選股掃描 ───────────────────────────────────────────────
   const handleAIScan = () => {
     setScanning(true); setQuery(""); setFilter("AI推薦"); setAiPicks([]);
     setTimeout(() => {
-      const picks = AI_PICKS.map(p => {
-        const s = ALL_STOCKS.find(x => x.code === p.code) || buildBase(p.code);
-        return s ? { ...s, aiReason: p.reason } : null;
-      }).filter(Boolean);
-      setAiPicks(picks);
+      setAiPicks(
+        AI_PICKS.map(p => {
+          const s = ALL_STOCKS.find(x => x.code === p.code) || buildBase(p.code);
+          return s ? {...s, aiReason: p.reason} : null;
+        }).filter(Boolean)
+      );
       setScanning(false);
-    }, 600);
+    }, 300);
   };
 
+  // ── 個股分析 ─────────────────────────────────────────────────
   const handleSelect = useCallback(async (s) => {
     setSelected(s); setAnalysis(""); setLoadAI(true);
-    const divS = s.divs?.length
-      ? `除息${s.divs[0].exDate} 配$${s.divs[0].cash} 殖利率${s.divs[0].yld}%`
-      : "無除息";
+    const divS = s.divs?.length ? `除息${s.divs[0].exDate} 配$${s.divs[0].cash} 殖利率${s.divs[0].yld}%` : "無除息";
     const prompt = `你是資深台股基金經理人，請以繁體中文針對以下股票撰寫約350字的專業分析。\n股票：${s.code} ${s.name}（${s.sector}）題材：${s.theme}\n現價：$${fmtP(s.price)} 漲跌：${s.changePct}%\nPE：${s.pe}x　ROE：${s.roe}%\n${divS}\n請輸出四段：【一、題材與催化劑】【二、財務健康度】【三、估值與股利分析】【四、操作建議】`;
     try {
-      const r = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:1024, messages:[{role:"user",content:prompt}] })
-      });
+      const r = await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1024,messages:[{role:"user",content:prompt}]})});
       if (!r.ok) throw 0;
       const j = await r.json();
       const t = (j.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("").trim();
       setAnalysis(t || buildFallback(s));
-    } catch {
-      setAnalysis(buildFallback(s));
-    }
+    } catch { setAnalysis(buildFallback(s)); }
     setLoadAI(false);
   }, [ALL_STOCKS]);
 
-  const hotCnt   = ALL_STOCKS.filter(s => Math.abs(s.changePct) >= 9.5).length;
-  const aiCnt    = Object.keys(aiSheetMap).length;
+  const hotCnt  = ALL_STOCKS.filter(s => Math.abs(s.changePct) >= 9.5).length;
+  const aiCnt   = Object.keys(aiSheetMap).length;
   const isLoading = status === "載入中";
 
   return (
