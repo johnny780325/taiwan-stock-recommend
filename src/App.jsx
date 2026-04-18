@@ -847,6 +847,7 @@ export default function App() {
   const [loadAI,     setLoadAI]     = useState(false);
   const [aiPicks,    setAiPicks]    = useState([]);
   const [scanning,   setScanning]   = useState(false);
+  const [shouldScan,  setShouldScan]  = useState(false);
 
   // 三個工作表的資料 state
   const [stockMap,   setStockMap]   = useState({});
@@ -875,6 +876,8 @@ export default function App() {
       if (aCnt) setAiSheetMap(aMap);
       setDataDate(json.updatedAt || "");
       setStatus("已更新");
+      // 載入完自動更新 AI推薦清單
+      setShouldScan(true);
     } catch(err) {
       const msg = err.message || "未知錯誤";
       setDebugMsg("❌ " + msg);
@@ -883,6 +886,18 @@ export default function App() {
       setDataDate("");
     }
   }, []);
+
+  // 載入完成後自動執行 AI推薦
+  useEffect(() => {
+    if (shouldScan && ALL_STOCKS.length > 0) {
+      setShouldScan(false);
+      const picks = AI_PICKS.map(p => {
+        const s = ALL_STOCKS.find(x => x.code === p.code);
+        return s ? { ...s, aiReason: p.reason } : null;
+      }).filter(Boolean);
+      setAiPicks(picks);
+    }
+  }, [shouldScan, ALL_STOCKS]);
 
   // 開啟時自動載入
   useEffect(() => {
