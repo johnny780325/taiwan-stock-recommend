@@ -27,11 +27,15 @@ async function fetchData(url) {
 // ── 判斷上市/上櫃/興櫃 ──────────────────────────────────────
 function getMarketType(code) {
   const c = String(code).replace(/['"]/g,"").trim();
-  // 含英文且非ETF開頭 → 興櫃
-  if (/[A-Za-z]/.test(c) && !c.startsWith("00")) return "興櫃";
-  const n = parseInt(c) || 0;
-  // ETF (00開頭5碼以上)
+  // ETF（00開頭）→ 上市
   if (c.startsWith("00") && c.length >= 5) return "上市";
+  const n = parseInt(c) || 0;
+  // ★ 已知例外：3xxx 開頭但實際上市
+  const listed3xxx = new Set([
+    3008,3017,3034,3037,3045,3231,3260,3406,3443,
+    3491,3533,3653,3661,3711,3714
+  ]);
+  if (listed3xxx.has(n)) return "上市";
   // 上市範圍
   if (n >= 1000 && n <= 2999) return "上市";
   if (n >= 4000 && n <= 4099) return "上市";
@@ -47,6 +51,7 @@ function getMarketType(code) {
   if (n >= 9000) return "興櫃";
   return "上市";
 }
+
 
 // ── 資料轉換：行情 ───────────────────────────────────────────
 function rowsToStockMap(rows) {
@@ -65,7 +70,18 @@ function rowsToStockMap(rows) {
       price, change: ch, changePct: chgPct,
       name:      (r["公司名稱"]    || "").trim(),
       industry:  (r["產業類別"]    || "").trim(),
-      marketType: (r["市場別"] && r["市場別"].trim()) ? r["市場別"].trim() : getMarketType(code),
+      marketType: (() => {
+        // 1. 優先用試算表「市場別」欄位（Apps Script 已判斷好）
+        const mt = (r["市場別"] || "").trim();
+        if (mt === "上市" || mt === "上櫃" || mt === "興櫃") return mt;
+        // 2. 用「產業類別」欄位判斷（撿股讚格式：「上市-半導體」或「上櫃-電子」）
+        const ind = (r["產業類別"] || "").trim();
+        if (ind.startsWith("上市")) return "上市";
+        if (ind.startsWith("上櫃")) return "上櫃";
+        if (ind.startsWith("興櫃")) return "興櫃";
+        // 3. 最後用代號推算
+        return getMarketType(code);
+      })(),
       invest:     r["投信買賣超"]   || "0",
       foreign:    r["外資買賣超"]   || "0",
       dealer:     r["自營買賣超"]   || "0",
