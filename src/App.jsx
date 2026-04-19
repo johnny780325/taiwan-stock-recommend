@@ -399,9 +399,9 @@ function Card({ s, onSelect }) {
           {s.aiReason && <div style={{fontSize:11,color:"#00d296",marginTop:3,lineHeight:1.4}}>💡 {s.aiReason}</div>}
           {s.aiComment && !s.aiReason && <div style={{fontSize:10,color:"#7b61ff",marginTop:3,lineHeight:1.4,opacity:0.85}}>{s.aiComment.slice(0,40)}{s.aiComment.length>40?"…":""}</div>}
           <div style={{display:"flex",gap:10,marginTop:5}}>
-            <span style={{fontSize:11,color:"#555"}}>PE <b style={{color:s.peColor}}>{s.pe}</b></span>
+            <span style={{fontSize:11,color:"#555"}}>本益比 <b style={{color:s.peColor}}>{s.pe}</b></span>
             <span style={{fontSize:11,color:"#555"}}>ROE <b style={{color:"#a8d8ff"}}>{s.roe}%</b></span>
-            {s.yld > 0 && <span style={{fontSize:11,color:"#555"}}>息 <b style={{color:"#ffd166"}}>{s.yld}%</b></span>}
+            {s.yld > 0 && <span style={{fontSize:11,color:"#555"}}>殖利率 <b style={{color:"#ffd166"}}>{s.yld}%</b></span>}
           </div>
         </div>
         <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,marginLeft:10}}>
@@ -906,7 +906,11 @@ export default function App() {
       const price     = mkt?.price > 0 ? mkt.price    : (db?.px  || 0);
       const change    = mkt?.price > 0 ? mkt.change   : (db?.ch  || 0);
       const changePct = mkt?.price > 0 ? mkt.changePct: (db?.pct || 0);
-      const yld     = div?.yld ? parseFloat(div.yld) : (db?.divs?.[0]?.yld ?? 0);
+      // 殖利率：撿股讚存小數格式（0.0149 = 1.49%），需乘100
+      const yldRaw  = div?.yld ? parseFloat(div.yld) : 0;
+      const yld     = yldRaw > 0
+        ? (yldRaw < 1.5 ? +(yldRaw * 100).toFixed(2) : +yldRaw.toFixed(2))
+        : (db?.divs?.[0]?.yld ?? 0);
       const divs    = (div?.cash && div.cash !== "0" && div.cash !== "") ? [
         {year:"2026",exDate:div.exDivDate||"",payDate:div.payDate||"",cash:parseFloat(div.cash)||0,yld,lastBuy:""},
         ...(db?.divs?.slice(1)||[])
