@@ -757,11 +757,18 @@ function Modal({ s, onClose, analysis, loadingAI }) {
                 證交所分點 API 目前暫停服務<br/>
                 <span style={{fontSize:10,color:"#333"}}>可至籌碼 K 線或證交所官網查詢</span>
               </div>
-              <button
-                onClick={() => window.open(`https://goodinfo.tw/tw/StockBrkBuySaleDetail.asp?STOCK_ID=${s.code}`, '_blank')}
-                style={{background:"rgba(0,210,150,0.12)",border:"1px solid rgba(0,210,150,0.2)",color:"#00d296",padding:"6px 12px",borderRadius:20,fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",marginLeft:10}}>
-                Goodinfo 查詢 →
-              </button>
+              <div style={{display:"flex",flexDirection:"column",gap:6,marginLeft:10}}>
+                <button
+                  onClick={() => window.open(`https://goodinfo.tw/tw/ShowBuySaleChart.asp?STOCK_ID=${s.code}&CHT_CAT=DATE`, '_blank')}
+                  style={{background:"rgba(0,210,150,0.12)",border:"1px solid rgba(0,210,150,0.2)",color:"#00d296",padding:"5px 10px",borderRadius:16,fontSize:10,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
+                  法人買賣超 →
+                </button>
+                <button
+                  onClick={() => window.open(`https://goodinfo.tw/tw/ShowMarginChart.asp?STOCK_ID=${s.code}&CHT_CAT=DATE`, '_blank')}
+                  style={{background:"rgba(255,209,102,0.1)",border:"1px solid rgba(255,209,102,0.2)",color:"#ffd166",padding:"5px 10px",borderRadius:16,fontSize:10,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
+                  融資融券 →
+                </button>
+              </div>
             </div>
           </div>
 
