@@ -3,7 +3,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 // ══════════════════════════════════════════════════════════════
 // Apps Script Web App — 三個工作表統一入口
 // ══════════════════════════════════════════════════════════════
-const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzfDY70pU7LAEr9uMkqnvY-0wNR54qudMh7RIz05ECI3XExz_80_yNNt3EaOqCDu-nQUA/exec";
+const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwU0_YUmfNjq8dR5Nnng_mD3FDPkhTX1O4nZMt8QzYFcu9GfWI08nuqukhkwXLiyTgxAw/exec";
 
 // ── fetch 抓取 Apps Script ───────────────────────────────────
 // Apps Script 會先 302 到 googleusercontent.com，fetch 會自動跟著跳轉
@@ -751,26 +751,18 @@ function Modal({ s, onClose, analysis, loadingAI }) {
 
           {/* 券商分點主力分析 */}
           <div className="msec">
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-              <div className="sl" style={{marginBottom:0}}>券商分點主力分析</div>
-              {!brokers && !loadBroker && (
-                <button onClick={handleLoadBrokers}
-                  style={{background:"linear-gradient(135deg,#7b2fff,#0077ff)",color:"#fff",border:"none",padding:"5px 12px",borderRadius:20,fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                  載入分點
-                </button>
-              )}
-            </div>
-            {loadBroker && (
-              <div style={{display:"flex",alignItems:"center",gap:8,color:"#555",fontSize:12}}>
-                <div className="spinner"/>抓取證交所資料中...
+            <div className="sl">券商分點主力分析</div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{fontSize:11,color:"#444"}}>
+                證交所分點 API 目前暫停服務<br/>
+                <span style={{fontSize:10,color:"#333"}}>可至籌碼 K 線或證交所官網查詢</span>
               </div>
-            )}
-            {brokerErr && <div style={{fontSize:11,color:"#ff6b6b"}}>{brokerErr}</div>}
-            {brokers && brokers.length > 0 && <BrokerChart brokers={brokers}/>}
-            {!brokers && !loadBroker && (
-              <div style={{fontSize:11,color:"#444"}}>點擊「載入分點」查看今日主力券商買賣超</div>
-            )}
-            <div style={{fontSize:9,color:"#333",marginTop:8}}>資料來源：台灣證交所 · 當日資料</div>
+              <button
+                onClick={() => window.open(`https://goodinfo.tw/tw/StockBrkBuySaleDetail.asp?STOCK_ID=${s.code}`, '_blank')}
+                style={{background:"rgba(0,210,150,0.12)",border:"1px solid rgba(0,210,150,0.2)",color:"#00d296",padding:"6px 12px",borderRadius:20,fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",marginLeft:10}}>
+                Goodinfo 查詢 →
+              </button>
+            </div>
           </div>
 
           {/* 配息穩定性 */}
