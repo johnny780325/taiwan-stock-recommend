@@ -554,44 +554,28 @@ function BrokerChart({ brokers }) {
   );
 }
 
-// 抓證交所券商分點資料（多個 proxy 備援）
+// 抓券商分點資料 — 透過 Apps Script 中介（最穩定）
 async function fetchBrokers(code) {
-  const target = `https://www.twse.com.tw/rwd/zh/brokerInfo/TWT38U?selectType=S&stockNo=${code}&response=json`;
-
-  const proxies = [
-    `https://corsproxy.io/?${encodeURIComponent(target)}`,
-    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(target)}`,
-    `https://thingproxy.freeboard.io/fetch/${target}`,
-  ];
-
-  let lastErr = "";
-  for (const url of proxies) {
-    try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-      if (!res.ok) { lastErr = "HTTP " + res.status; continue; }
-      const text = await res.text();
-      // 有些 proxy 直接回傳 JSON，有些包在 contents 裡
-      let json;
-      try {
-        const raw = JSON.parse(text);
-        json = raw.contents ? JSON.parse(raw.contents) : raw;
-      } catch {
-        lastErr = "JSON parse error"; continue;
-      }
-      if (!json?.data?.length) return [];
-      return json.data.map(r => ({
-        id:   r[0] || "",
-        name: r[1] || "",
-        buy:  String(r[2]||"0").replace(/,/g,""),
-        sell: String(r[3]||"0").replace(/,/g,""),
-        diff: String(r[4]||"0").replace(/,/g,""),
-      })).filter(b => parseFloat(b.buy) > 0 || parseFloat(b.sell) > 0);
-    } catch(e) {
-      lastErr = e.message;
-      continue;
-    }
+  const url = WEB_APP_URL + "?action=broker&code=" + encodeURIComponent(code);
+  const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const text = await res.text();
+  let json;
+  try {
+    const raw = JSON.parse(text);
+    // Apps Script 可能回傳 {brokers: [...]} 或直接是陣列
+    json = raw.brokers || raw;
+  } catch {
+    throw new Error("JSON parse error");
   }
-  throw new Error("所有 proxy 失敗：" + lastErr);
+  if (!Array.isArray(json) || !json.length) return [];
+  return json.map(r => ({
+    id:   String(r[0]||""),
+    name: String(r[1]||""),
+    buy:  String(r[2]||"0").replace(/,/g,""),
+    sell: String(r[3]||"0").replace(/,/g,""),
+    diff: String(r[4]||"0").replace(/,/g,""),
+  })).filter(b => parseFloat(b.buy) > 0 || parseFloat(b.sell) > 0);
 }
 
 function Modal({ s, onClose, analysis, loadingAI }) {
