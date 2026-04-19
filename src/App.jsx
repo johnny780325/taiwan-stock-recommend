@@ -994,13 +994,10 @@ export default function App() {
     const advantage = s.advantage || "";
     const risk      = s.risk      || "";
     // 暫時顯示確認（確認後移除）
-    console.log("3711 AI data:", JSON.stringify({
-      advantage: s.advantage,
-      risk: s.risk,
-      aiScore: s.aiScore,
-      mgmtNote: s.mgmtNote,
-      aiComment: s.aiComment
-    }));
+    if (s.code === "3711") {
+      console.log("handleSelect s.advantage:", s.advantage);
+      console.log("handleSelect s.risk:", s.risk);
+    }
     const mgmtNote  = s.mgmtNote  || "";
     const aiScore   = s.aiScore   || "";
 
@@ -1022,12 +1019,20 @@ ${mgmtNote ? "管理層評語：" + mgmtNote : ""}
 【三、估值與股利分析】評估目前股價是否合理，除息吸引力
 【四、操作建議】★必須針對上面列出的「本股主要風險」給出具體因應策略，不得使用「景氣循環」等通用說法`;
     try {
+      console.log("Sending prompt with advantage:", advantage, "risk:", risk);
       const r = await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1024,messages:[{role:"user",content:prompt}]})});
-      if (!r.ok) throw 0;
+      if (!r.ok) {
+        console.error("API error:", r.status);
+        throw 0;
+      }
       const j = await r.json();
       const t = (j.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("").trim();
+      console.log("Claude response length:", t.length);
       setAnalysis(t || buildFallback(s));
-    } catch { setAnalysis(buildFallback(s)); }
+    } catch(e) {
+      console.error("Claude failed:", e);
+      setAnalysis(buildFallback(s));
+    }
     setLoadAI(false);
   }, [ALL_STOCKS]);
 
