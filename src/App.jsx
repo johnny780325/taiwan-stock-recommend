@@ -643,56 +643,6 @@ function Modal({ s, onClose }) {
             </div>
           </div>
 
-          {/* AI選股分析（試算表）*/}
-          {(s.aiScore || s.mgmtScore) && (
-            <div style={{background:"linear-gradient(135deg,rgba(0,150,100,0.08),rgba(80,0,200,0.06))",border:"1px solid rgba(0,210,150,0.2)",borderRadius:14,padding:16,marginBottom:10}}>
-              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-                <div style={{width:30,height:30,background:"linear-gradient(135deg,#00d296,#7b2fff)",borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>📊</div>
-                <div>
-                  <div style={{fontSize:13,fontWeight:700,color:"#00d296"}}>AI 選股分析</div>
-                  <div style={{fontSize:10,color:"#555"}}>Apps Script 規則引擎 · 每日更新</div>
-                </div>
-              </div>
-              {s.aiScore && (
-                <div style={{marginBottom:12}}>
-                  <div style={{fontSize:10,color:"#555",marginBottom:5}}>AI 綜合評分</div>
-                  <div style={{display:"flex",alignItems:"center",gap:10}}>
-                    <div style={{fontSize:28,fontWeight:900,fontFamily:"monospace",color:s.aiScore>=8?"#ffd166":s.aiScore>=6?"#00d296":"#aaa"}}>
-                      {s.aiScore}<span style={{fontSize:12,color:"#555"}}>/10</span>
-                    </div>
-                    <div style={{flex:1,height:6,background:"rgba(255,255,255,0.06)",borderRadius:3,overflow:"hidden"}}>
-                      <div style={{height:"100%",width:`${(s.aiScore/10)*100}%`,background:s.aiScore>=8?"#ffd166":s.aiScore>=6?"#00d296":"#888",borderRadius:3}}/>
-                    </div>
-                  </div>
-                  {s.aiComment && <div style={{fontSize:12,color:"#ccc",marginTop:6,lineHeight:1.6}}>{s.aiComment}</div>}
-                </div>
-              )}
-              {(s.advantage || s.risk) && (
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-                  {s.advantage && <div style={{background:"rgba(0,210,150,0.06)",border:"1px solid rgba(0,210,150,0.15)",borderRadius:10,padding:"8px 10px"}}>
-                    <div style={{fontSize:9,color:"#00d296",fontWeight:700,marginBottom:4}}>✅ 主要優勢</div>
-                    <div style={{fontSize:11,color:"#aaa",lineHeight:1.5}}>{s.advantage}</div>
-                  </div>}
-                  {s.risk && <div style={{background:"rgba(255,100,100,0.06)",border:"1px solid rgba(255,100,100,0.15)",borderRadius:10,padding:"8px 10px"}}>
-                    <div style={{fontSize:9,color:"#ff6b6b",fontWeight:700,marginBottom:4}}>⚠ 主要風險</div>
-                    <div style={{fontSize:11,color:"#aaa",lineHeight:1.5}}>{s.risk}</div>
-                  </div>}
-                </div>
-              )}
-              {s.mgmtScore && (
-                <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:10,padding:"10px 12px"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                    <div style={{fontSize:10,color:"#555",fontWeight:700}}>管理層評價</div>
-                    <div style={{display:"flex",alignItems:"center",gap:8}}>
-                      <span style={{fontSize:12,color:"#ffd166"}}>{s.mgmtLabel}</span>
-                      <span style={{fontSize:18,fontWeight:900,fontFamily:"monospace",color:"#ffd166"}}>{s.mgmtScore}<span style={{fontSize:10,color:"#555"}}>/10</span></span>
-                    </div>
-                  </div>
-                  {s.mgmtNote && <div style={{fontSize:11,color:"#888",lineHeight:1.6}}>{s.mgmtNote}</div>}
-                </div>
-              )}
-            </div>
-          )}
 
           {/* 籌碼分析 */}
           {(s.invest || s.foreign || s.dealer) && (() => {
