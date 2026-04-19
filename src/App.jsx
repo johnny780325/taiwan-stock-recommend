@@ -813,11 +813,6 @@ function Modal({ s, onClose }) {
           {/* 除息紀錄 */}
           <DivSection divs={s.divs} price={s.price}/>
 
-          {/* Debug: 顯示傳入的優勢風險（確認後移除）*/}
-          <div style={{background:"rgba(255,255,0,0.05)",border:"1px solid rgba(255,255,0,0.2)",borderRadius:10,padding:10,marginBottom:8,fontSize:10,color:"#ffd166"}}>
-            <div>advantage: {s.advantage || "（空）"}</div>
-            <div>risk: {s.risk || "（空）"}</div>
-          </div>
 
           {/* AI 選股分析摘要（來自試算表）*/}
           {(s.aiComment || s.advantage || s.risk) && (
