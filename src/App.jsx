@@ -917,6 +917,8 @@ export default function App() {
       ] : (db?.divs||[]);
       const pe      = parseFloat(mkt?.pe) || 20;
       const aiComment = ai?.aiComment || "";
+      // Debug：確認 3711 的 ai 資料
+      if (code === "3711") console.log("3711 ai object:", JSON.stringify(ai));
       return {
         code, name, theme, sector,
         price, change, changePct,
@@ -989,16 +991,36 @@ export default function App() {
     setSelected(s); setAnalysis(""); setLoadAI(true);
     const divS = s.divs?.length ? `除息${s.divs[0].exDate} 配$${s.divs[0].cash} 殖利率${s.divs[0].yld}%` : "無除息";
     // 帶入 AI 選股分析工作表的優勢與風險
-    const advantageStr = s.advantage ? `主要優勢：${s.advantage}` : "";
-    const riskStr      = s.risk      ? `主要風險：${s.risk}`      : "";
-    const aiCtx = [advantageStr, riskStr].filter(Boolean).join("\n");
+    const advantage = s.advantage || "";
+    const risk      = s.risk      || "";
+    // 暫時顯示確認（確認後移除）
+    console.log("3711 AI data:", JSON.stringify({
+      advantage: s.advantage,
+      risk: s.risk,
+      aiScore: s.aiScore,
+      mgmtNote: s.mgmtNote,
+      aiComment: s.aiComment
+    }));
+    const mgmtNote  = s.mgmtNote  || "";
+    const aiScore   = s.aiScore   || "";
 
-    const prompt = `你是資深台股基金經理人，請以繁體中文針對以下股票撰寫約350字的專業分析。
-股票：${s.code} ${s.name}（${s.sector}）題材：${s.theme}
-現價：$${fmtP(s.price)} 漲跌：${s.changePct}%
-本益比：${s.pe}x　ROE：${s.roe}%
-${divS}${aiCtx ? "\n" + aiCtx : ""}
-請輸出四段：【一、題材與催化劑】【二、財務健康度】【三、估值與股利分析】【四、操作建議（請務必根據上方的主要優勢與主要風險給出具體建議）】`;
+    const prompt = `你是資深台股基金經理人，請以繁體中文針對以下股票撰寫約400字的個股專屬分析，禁止使用通用模板。
+
+【股票基本資料】
+股票：${s.code} ${s.name}（${s.sector}）題材：${s.theme}　市場：${s.marketType||""}
+現價：$${fmtP(s.price)}　漲跌：${s.changePct}%　本益比：${s.pe}x
+${divS}
+AI綜合評分：${aiScore}/10
+${advantage ? "✅ 本股主要優勢：" + advantage : ""}
+${risk ? "⚠ 本股主要風險：" + risk : ""}
+${mgmtNote ? "管理層評語：" + mgmtNote : ""}
+
+【輸出要求】
+請根據以上【本股具體的優勢與風險】，輸出四段分析：
+【一、題材與催化劑】說明${s.name}的核心題材與近期催化劑
+【二、財務健康度】分析${s.name}的財務狀況（本益比、ROE、殖利率等）
+【三、估值與股利分析】評估目前股價是否合理，除息吸引力
+【四、操作建議】★必須針對上面列出的「本股主要風險」給出具體因應策略，不得使用「景氣循環」等通用說法`;
     try {
       const r = await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1024,messages:[{role:"user",content:prompt}]})});
       if (!r.ok) throw 0;
