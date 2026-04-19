@@ -594,7 +594,7 @@ async function fetchBrokers(code) {
   })).filter(b => parseFloat(b.buy) > 0 || parseFloat(b.sell) > 0);
 }
 
-function Modal({ s, onClose, analysis, loadingAI }) {
+function Modal({ s, onClose }) {
   const up = s.changePct >= 0, pc = up ? "#e05252" : "#06d6a0";
   const [brokers,     setBrokers]     = useState(null);
   const [loadBroker,  setLoadBroker]  = useState(false);
@@ -813,20 +813,58 @@ function Modal({ s, onClose, analysis, loadingAI }) {
           {/* 除息紀錄 */}
           <DivSection divs={s.divs} price={s.price}/>
 
-          {/* Claude AI 即時分析 */}
-          <div style={{background:"linear-gradient(135deg,rgba(0,150,100,0.1),rgba(0,100,255,0.06))",border:"1px solid rgba(0,210,150,0.18)",borderRadius:14,padding:16}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-              <div style={{width:30,height:30,background:"linear-gradient(135deg,#00d296,#0077ff)",borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>🤖</div>
-              <div>
-                <div style={{fontSize:13,fontWeight:700,color:"#00d296"}}>AI 專業經理人分析</div>
-                <div style={{fontSize:10,color:"#555"}}>Claude Sonnet · 即時生成</div>
-              </div>
-            </div>
-            {loadingAI
-              ? <div style={{display:"flex",alignItems:"center",gap:10,color:"#555",fontSize:13}}><div className="spinner"/>生成分析中...</div>
-              : <div style={{fontSize:13,color:"#ccc",lineHeight:1.85,whiteSpace:"pre-wrap"}}>{analysis}</div>
-            }
+          {/* Debug: 顯示傳入的優勢風險（確認後移除）*/}
+          <div style={{background:"rgba(255,255,0,0.05)",border:"1px solid rgba(255,255,0,0.2)",borderRadius:10,padding:10,marginBottom:8,fontSize:10,color:"#ffd166"}}>
+            <div>advantage: {s.advantage || "（空）"}</div>
+            <div>risk: {s.risk || "（空）"}</div>
           </div>
+
+          {/* AI 選股分析摘要（來自試算表）*/}
+          {(s.aiComment || s.advantage || s.risk) && (
+            <div style={{background:"linear-gradient(135deg,rgba(0,150,100,0.08),rgba(0,100,255,0.05))",border:"1px solid rgba(0,210,150,0.18)",borderRadius:14,padding:16}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+                <div style={{width:30,height:30,background:"linear-gradient(135deg,#00d296,#0077ff)",borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>🤖</div>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#00d296"}}>AI 選股分析</div>
+                  <div style={{fontSize:10,color:"#555"}}>Apps Script 規則引擎 · 每日更新</div>
+                </div>
+              </div>
+              {s.aiComment && (
+                <div style={{fontSize:13,color:"#ccc",lineHeight:1.7,marginBottom:10,padding:"10px 12px",background:"rgba(255,255,255,0.03)",borderRadius:10}}>
+                  {s.aiComment}
+                </div>
+              )}
+              {(s.advantage || s.risk) && (
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                  {s.advantage && (
+                    <div style={{background:"rgba(0,210,150,0.06)",border:"1px solid rgba(0,210,150,0.15)",borderRadius:10,padding:"10px 12px"}}>
+                      <div style={{fontSize:10,color:"#00d296",fontWeight:700,marginBottom:6}}>✅ 主要優勢</div>
+                      <div style={{fontSize:11,color:"#aaa",lineHeight:1.6}}>
+                        {s.advantage.split("、").map((item, i) => (
+                          <div key={i} style={{marginBottom:3}}>• {item}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {s.risk && (
+                    <div style={{background:"rgba(255,100,100,0.06)",border:"1px solid rgba(255,100,100,0.15)",borderRadius:10,padding:"10px 12px"}}>
+                      <div style={{fontSize:10,color:"#ff6b6b",fontWeight:700,marginBottom:6}}>⚠ 主要風險</div>
+                      <div style={{fontSize:11,color:"#aaa",lineHeight:1.6}}>
+                        {s.risk.split("、").map((item, i) => (
+                          <div key={i} style={{marginBottom:3}}>• {item}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {s.mgmtNote && (
+                <div style={{marginTop:10,padding:"8px 12px",background:"rgba(255,255,255,0.03)",borderRadius:10,fontSize:11,color:"#888",lineHeight:1.6}}>
+                  <span style={{color:"#ffd166",fontWeight:700}}>管理層：</span>{s.mgmtNote}
+                </div>
+              )}
+            </div>
+          )}
 
         </div>
       </div>
@@ -850,8 +888,6 @@ export default function App() {
   const [filter,     setFilter]     = useState("AI推薦");
   const [query,      setQuery]      = useState("");
   const [selected,   setSelected]   = useState(null);
-  const [analysis,   setAnalysis]   = useState("");
-  const [loadAI,     setLoadAI]     = useState(false);
   const [aiPicks,    setAiPicks]    = useState([]);
   const [scanning,   setScanning]   = useState(false);
   const [stockMap,   setStockMap]   = useState({});
@@ -917,8 +953,6 @@ export default function App() {
       ] : (db?.divs||[]);
       const pe      = parseFloat(mkt?.pe) || 20;
       const aiComment = ai?.aiComment || "";
-      // Debug：確認 3711 的 ai 資料
-      if (code === "3711") console.log("3711 ai object:", JSON.stringify(ai));
       return {
         code, name, theme, sector,
         price, change, changePct,
@@ -987,54 +1021,9 @@ export default function App() {
   };
 
   // ── 個股分析 ─────────────────────────────────────────────────
-  const handleSelect = useCallback(async (s) => {
-    setSelected(s); setAnalysis(""); setLoadAI(true);
-    const divS = s.divs?.length ? `除息${s.divs[0].exDate} 配$${s.divs[0].cash} 殖利率${s.divs[0].yld}%` : "無除息";
-    // 帶入 AI 選股分析工作表的優勢與風險
-    const advantage = s.advantage || "";
-    const risk      = s.risk      || "";
-    // 暫時顯示確認（確認後移除）
-    if (s.code === "3711") {
-      console.log("handleSelect s.advantage:", s.advantage);
-      console.log("handleSelect s.risk:", s.risk);
-    }
-    const mgmtNote  = s.mgmtNote  || "";
-    const aiScore   = s.aiScore   || "";
-
-    const prompt = `你是資深台股基金經理人，請以繁體中文針對以下股票撰寫約400字的個股專屬分析，禁止使用通用模板。
-
-【股票基本資料】
-股票：${s.code} ${s.name}（${s.sector}）題材：${s.theme}　市場：${s.marketType||""}
-現價：$${fmtP(s.price)}　漲跌：${s.changePct}%　本益比：${s.pe}x
-${divS}
-AI綜合評分：${aiScore}/10
-${advantage ? "✅ 本股主要優勢：" + advantage : ""}
-${risk ? "⚠ 本股主要風險：" + risk : ""}
-${mgmtNote ? "管理層評語：" + mgmtNote : ""}
-
-【輸出要求】
-請根據以上【本股具體的優勢與風險】，輸出四段分析：
-【一、題材與催化劑】說明${s.name}的核心題材與近期催化劑
-【二、財務健康度】分析${s.name}的財務狀況（本益比、ROE、殖利率等）
-【三、估值與股利分析】評估目前股價是否合理，除息吸引力
-【四、操作建議】★必須針對上面列出的「本股主要風險」給出具體因應策略，不得使用「景氣循環」等通用說法`;
-    try {
-      console.log("Sending prompt with advantage:", advantage, "risk:", risk);
-      const r = await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1024,messages:[{role:"user",content:prompt}]})});
-      if (!r.ok) {
-        console.error("API error:", r.status);
-        throw 0;
-      }
-      const j = await r.json();
-      const t = (j.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("").trim();
-      console.log("Claude response length:", t.length);
-      setAnalysis(t || buildFallback(s));
-    } catch(e) {
-      console.error("Claude failed:", e);
-      setAnalysis(buildFallback(s));
-    }
-    setLoadAI(false);
-  }, [ALL_STOCKS]);
+  const handleSelect = useCallback((s) => {
+    setSelected(s);
+  }, []);
 
   const hotCnt  = ALL_STOCKS.filter(s => Math.abs(s.changePct) >= 9.5).length;
   const aiCnt   = Object.keys(aiSheetMap).length;
@@ -1168,7 +1157,7 @@ ${mgmtNote ? "管理層評語：" + mgmtNote : ""}
         <span style={{fontFamily:"monospace"}}>v12 · {ALL_STOCKS.length}檔</span>
       </div>
 
-      {selected && <Modal s={selected} onClose={() => setSelected(null)} analysis={analysis} loadingAI={loadAI}/>}
+      {selected && <Modal s={selected} onClose={() => setSelected(null)}/>}
     </div>
   );
 }
