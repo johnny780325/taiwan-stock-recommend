@@ -1,23 +1,17 @@
 {
   "name": "台股題材選股雷達",
-  "short_name": "選股雷達",
-  "description": "即時台股行情、AI選股分析、除權息資訊",
+  "short_name": "台股雷達",
+  "description": "台灣股市題材選股 AI 分析工具",
   "start_url": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#0a0a0f",
   "theme_color": "#0a0a0f",
-  "orientation": "portrait",
   "icons": [
     {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
       "purpose": "any maskable"
     }
   ]
