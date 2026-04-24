@@ -1095,6 +1095,10 @@ export default function App() {
 
   // ── 開啟時自動載入 ────────────────────────────────────────────
   useEffect(() => {
+    // 防止白畫面：直接設定 document 背景
+    document.documentElement.style.background = "#0a0a0f";
+    document.body.style.background = "#0a0a0f";
+    document.body.style.color = "#fff";
     const m = document.querySelector('meta[name="viewport"]');
     if (m) m.content = "width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no";
     loadData();
@@ -1206,7 +1210,7 @@ export default function App() {
     <div style={{display:"flex",height:"100vh",overflow:"hidden",background:"#0a0a0f",color:"#fff",fontFamily:"'Noto Sans TC','PingFang TC',sans-serif"}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap');
-        *{box-sizing:border-box;margin:0;padding:0;} html,body,#root{background:#0a0a0f;min-height:100%;} html,body{-webkit-text-size-adjust:none;} input{font-size:16px!important;}
+        *{box-sizing:border-box;margin:0;padding:0;} html,body,#root{background:#0a0a0f!important;min-height:100%;color:#fff;} html,body{-webkit-text-size-adjust:none;} input{font-size:16px!important;}
         ::-webkit-scrollbar{width:3px;} ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px;}
         .scan-btn{background:linear-gradient(135deg,#00d296,#0077ff);color:#000;border:none;padding:10px 16px;border-radius:50px;font-size:13px;font-weight:900;cursor:pointer;white-space:nowrap;transition:all 0.18s;}
         .scan-btn:active{transform:scale(0.97);} .scan-btn:disabled{opacity:0.6;cursor:not-allowed;}
@@ -1312,7 +1316,11 @@ export default function App() {
               <div className="search-wrap">
                 <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:14,color:"#444",pointerEvents:"none"}}>🔍</span>
                 <input className="search-box" placeholder="搜尋股號或名稱：2330、台積電、00919、長榮…"
-                  value={query} onChange={e => { setQuery(e.target.value); }}/>
+                  value={query} onChange={e => {
+                    const v = e.target.value;
+                    setQuery(v);
+                    if (!v.trim()) setFilter("AI推薦");
+                  }}/>
                 {query && <button className="clear-btn" onClick={() => { setQuery(""); setFilter("AI推薦"); }}>✕</button>}
               </div>
               {/* 主題篩選 */}
