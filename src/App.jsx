@@ -600,6 +600,52 @@ function Modal({ s, onClose }) {
   const [loadBroker,  setLoadBroker]  = useState(false);
   const [brokerErr,   setBrokerErr]   = useState("");
 
+  // ── 下滑關閉手勢 ─────────────────────────────────────────────
+  const sheetRef   = useRef(null);
+  const dragY      = useRef(0);
+  const startY     = useRef(0);
+  const isDragging = useRef(false);
+
+  const onTouchStart = (e) => {
+    // 只在頂部拖把區或內容捲到頂端時才啟動手勢
+    const sheet = sheetRef.current;
+    const scrollEl = sheet?.querySelector('[data-scroll]');
+    if (scrollEl && scrollEl.scrollTop > 0) return;
+    startY.current = e.touches[0].clientY;
+    dragY.current = 0;
+    isDragging.current = true;
+  };
+
+  const onTouchMove = (e) => {
+    if (!isDragging.current) return;
+    const dy = e.touches[0].clientY - startY.current;
+    if (dy < 0) { isDragging.current = false; return; } // 上滑不處理
+    dragY.current = dy;
+    if (sheetRef.current) {
+      sheetRef.current.style.transform = `translateY(${dy}px)`;
+      sheetRef.current.style.transition = 'none';
+    }
+  };
+
+  const onTouchEnd = () => {
+    if (!isDragging.current) return;
+    isDragging.current = false;
+    if (dragY.current > 80) {
+      // 滑超過 80px 就關閉
+      if (sheetRef.current) {
+        sheetRef.current.style.transition = 'transform 0.25s ease';
+        sheetRef.current.style.transform = 'translateY(100%)';
+      }
+      setTimeout(onClose, 220);
+    } else {
+      // 不夠就彈回去
+      if (sheetRef.current) {
+        sheetRef.current.style.transition = 'transform 0.3s cubic-bezier(0.22,1,0.36,1)';
+        sheetRef.current.style.transform = 'translateY(0)';
+      }
+    }
+  };
+
   const handleLoadBrokers = async () => {
     setLoadBroker(true); setBrokerErr(""); setBrokers(null);
     try {
@@ -613,12 +659,17 @@ function Modal({ s, onClose }) {
   };
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="sheet" onClick={e => e.stopPropagation()}>
-        <div style={{display:"flex",justifyContent:"center",padding:"10px 0 2px"}}>
-          <div style={{width:38,height:4,background:"rgba(255,255,255,0.12)",borderRadius:2}}/>
+      <div className="sheet" ref={sheetRef}
+        onClick={e => e.stopPropagation()}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        <div style={{display:"flex",justifyContent:"center",padding:"10px 0 2px",cursor:"grab"}}>
+          <div style={{width:38,height:4,background:"rgba(255,255,255,0.2)",borderRadius:2}}/>
         </div>
         <button onClick={onClose} className="close-btn">✕</button>
-        <div style={{overflowY:"auto",flex:1,padding:"0 18px 32px"}}>
+        <div data-scroll style={{overflowY:"auto",flex:1,padding:"0 18px 32px"}}>
 
           {/* Header */}
           <div style={{marginBottom:14}}>
