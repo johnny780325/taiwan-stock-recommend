@@ -4,24 +4,25 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#0a0a0f" />
-    <link rel="manifest" href="/manifest.json" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="選股雷達" />
-    <link rel="apple-touch-icon" href="/icon-192.png" />
-    <meta name="mobile-web-app-capable" content="yes" />
     <title>台股題材選股雷達</title>
-    <link rel="icon" type="image/png" href="/icon-192.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- 在 React 載入前就設定深色背景，避免白畫面閃爍 -->
+    <style>
+      html, body, #root {
+        background: #0a0a0f !important;
+        margin: 0;
+        padding: 0;
+        min-height: 100%;
+        color: #fff;
+      }
+    </style>
   </head>
   <body>
+    <!-- 在 JS bundle 執行前立即設定深色背景，消除白畫面 -->
+    <script>document.documentElement.style.cssText='background:#0a0a0f';document.body.style.cssText='background:#0a0a0f;margin:0';</script>
     <div id="root"></div>
-    <script type="module" src="./src/main.jsx"></script>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js');
-        });
-      }
-    </script>
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
