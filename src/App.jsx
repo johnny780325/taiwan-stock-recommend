@@ -932,34 +932,47 @@ function IPOView({ ipoData, loading }) {
 function GiftView({ giftData, loading }) {
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => {
-    if (!search.trim()) return giftData;
+    const sortByLastBuy = (arr) => [...arr].sort((a, b) => {
+      const da = parseDate(a["最後買進日"]);
+      const db = parseDate(b["最後買進日"]);
+      if (!da && !db) return 0;
+      if (!da) return 1;
+      if (!db) return -1;
+      return db - da; // 降冪：日期越新排越前
+    });
+    if (!search.trim()) return sortByLastBuy(giftData);
     const q = search.trim().toLowerCase();
-    return giftData.filter(r =>
+    return sortByLastBuy(giftData.filter(r =>
       (r["股票代號"]||"").includes(q) ||
       (r["公司名稱"]||"").toLowerCase().includes(q) ||
       (r["紀念品"]||"").toLowerCase().includes(q) ||
       (r["開會地點"]||"").includes(q)
-    );
+    ));
   }, [giftData, search]);
 
-  const cols = ["序號","股票代號","公司名稱","股價","紀念品","開會日期","開會地點","最後買進日","股務代理","股代電話","零股寄單","是否改選"];
+  const cols = ["股票代號","公司名稱","股價","紀念品","開會日期","開會地點","最後買進日","股務代理","股代電話","零股寄單","是否改選"];
 
-  const daysLeft = (dateStr) => {
+  const parseDate = (dateStr) => {
     if (!dateStr || dateStr === "─") return null;
     try {
-      let d;
       if (dateStr.includes("/")) {
         const p = dateStr.split("/");
         const y = parseInt(p[0]) < 1911 ? parseInt(p[0]) + 1911 : parseInt(p[0]);
-        d = new Date(y, parseInt(p[1])-1, parseInt(p[2]));
+        return new Date(y, parseInt(p[1])-1, parseInt(p[2]));
       } else if (dateStr.includes(".")) {
         const p = dateStr.split(".");
-        d = new Date(new Date().getFullYear(), parseInt(p[0])-1, parseInt(p[1]));
+        const d = new Date(new Date().getFullYear(), parseInt(p[0])-1, parseInt(p[1]));
         if (d < new Date()) d.setFullYear(d.getFullYear()+1);
+        return d;
       }
-      if (!d) return null;
-      return Math.ceil((d - new Date()) / (1000*60*60*24));
-    } catch { return null; }
+    } catch {}
+    return null;
+  };
+
+  const daysLeft = (dateStr) => {
+    const d = parseDate(dateStr);
+    if (!d) return null;
+    return Math.ceil((d - new Date()) / (1000*60*60*24));
   };
 
   return (
@@ -1015,7 +1028,6 @@ function GiftView({ giftData, loading }) {
                       if (c === "最後買進日" && days !== null) {
                         style.color = days <= 7 ? "#e05252" : days <= 14 ? "#ffd166" : "#06d6a0";
                         style.fontWeight = 700;
-                        val = val + (days >= 0 ? ` (${days}天)` : " (已過)");
                       }
                       if (c === "股票代號") { style.color = "#4da6ff"; style.fontFamily = "monospace"; }
                       if (c === "公司名稱") { style.color = "#fff"; style.fontWeight = 600; }
