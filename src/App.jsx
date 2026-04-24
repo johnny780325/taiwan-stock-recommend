@@ -1171,8 +1171,8 @@ export default function App() {
   const search = useMemo(() => makeSearchFn(ALL_STOCKS), [ALL_STOCKS]);
 
   const displayList = useMemo(() => {
-    if (filter === "AI推薦") return aiPicks;
     if (query.trim()) return search(query);
+    if (filter === "AI推薦") return aiPicks;
     return ALL_STOCKS.filter(s => s.theme === filter);
   }, [filter, query, aiPicks, ALL_STOCKS, search]);
 
@@ -1206,7 +1206,7 @@ export default function App() {
     <div style={{display:"flex",height:"100vh",overflow:"hidden",background:"#0a0a0f",color:"#fff",fontFamily:"'Noto Sans TC','PingFang TC',sans-serif"}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap');
-        *{box-sizing:border-box;margin:0;padding:0;} body{background:#0a0a0f;} html,body{-webkit-text-size-adjust:none;} input{font-size:16px!important;}
+        *{box-sizing:border-box;margin:0;padding:0;} html,body,#root{background:#0a0a0f;min-height:100%;} html,body{-webkit-text-size-adjust:none;} input{font-size:16px!important;}
         ::-webkit-scrollbar{width:3px;} ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px;}
         .scan-btn{background:linear-gradient(135deg,#00d296,#0077ff);color:#000;border:none;padding:10px 16px;border-radius:50px;font-size:13px;font-weight:900;cursor:pointer;white-space:nowrap;transition:all 0.18s;}
         .scan-btn:active{transform:scale(0.97);} .scan-btn:disabled{opacity:0.6;cursor:not-allowed;}
@@ -1312,8 +1312,8 @@ export default function App() {
               <div className="search-wrap">
                 <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:14,color:"#444",pointerEvents:"none"}}>🔍</span>
                 <input className="search-box" placeholder="搜尋股號或名稱：2330、台積電、00919、長榮…"
-                  value={query} onChange={e => { setQuery(e.target.value); if (filter==="AI推薦") setFilter("全部"); }}/>
-                {query && <button className="clear-btn" onClick={() => setQuery("")}>✕</button>}
+                  value={query} onChange={e => { setQuery(e.target.value); }}/>
+                {query && <button className="clear-btn" onClick={() => { setQuery(""); setFilter("AI推薦"); }}>✕</button>}
               </div>
               {/* 主題篩選 */}
               {!query && (
