@@ -10,30 +10,11 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      html, body, #root {
-        background: #0a0a0f !important;
-        min-height: 100%;
-        color: #fff;
-      }
-      @keyframes sp { to { transform: rotate(360deg) } }
-      .pre-spinner {
-        width: 40px; height: 40px;
-        border: 3px solid rgba(0,210,150,0.2);
-        border-top-color: #00d296;
-        border-radius: 50%;
-        animation: sp 0.7s linear infinite;
-      }
+      html, body, #root { background: #0a0a0f !important; min-height: 100%; color: #fff; }
     </style>
   </head>
   <body style="background:#0a0a0f">
-    <div id="root">
-      <!-- React 接管前顯示的 loading 畫面，避免白畫面 -->
-      <div style="min-height:100vh;background:#0a0a0f;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'PingFang TC',sans-serif;gap:16px">
-        <div class="pre-spinner"></div>
-        <div style="font-size:14px;font-weight:700;color:#00d296;letter-spacing:2px">台股題材選股雷達</div>
-        <div style="font-size:11px;color:#444">載入中...</div>
-      </div>
-    </div>
+    <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
