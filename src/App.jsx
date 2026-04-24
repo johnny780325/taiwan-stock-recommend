@@ -931,26 +931,6 @@ function IPOView({ ipoData, loading }) {
 // ══════════════════════════════════════════════════════════════
 function GiftView({ giftData, loading }) {
   const [search, setSearch] = useState("");
-  const filtered = useMemo(() => {
-    const sortByLastBuy = (arr) => [...arr].sort((a, b) => {
-      const da = parseDate(a["最後買進日"]);
-      const db = parseDate(b["最後買進日"]);
-      if (!da && !db) return 0;
-      if (!da) return 1;
-      if (!db) return -1;
-      return db - da; // 降冪：日期越新排越前
-    });
-    if (!search.trim()) return sortByLastBuy(giftData);
-    const q = search.trim().toLowerCase();
-    return sortByLastBuy(giftData.filter(r =>
-      (r["股票代號"]||"").includes(q) ||
-      (r["公司名稱"]||"").toLowerCase().includes(q) ||
-      (r["紀念品"]||"").toLowerCase().includes(q) ||
-      (r["開會地點"]||"").includes(q)
-    ));
-  }, [giftData, search]);
-
-  const cols = ["股票代號","公司名稱","股價","紀念品","開會日期","開會地點","最後買進日","股務代理","股代電話","零股寄單","是否改選"];
 
   const parseDate = (dateStr) => {
     if (!dateStr || dateStr === "─") return null;
@@ -974,6 +954,27 @@ function GiftView({ giftData, loading }) {
     if (!d) return null;
     return Math.ceil((d - new Date()) / (1000*60*60*24));
   };
+
+  const cols = ["股票代號","公司名稱","股價","紀念品","開會日期","開會地點","最後買進日","股務代理","股代電話","零股寄單","是否改選"];
+
+  const filtered = useMemo(() => {
+    const sortByLastBuy = (arr) => [...arr].sort((a, b) => {
+      const da = parseDate(a["最後買進日"]);
+      const db = parseDate(b["最後買進日"]);
+      if (!da && !db) return 0;
+      if (!da) return 1;
+      if (!db) return -1;
+      return db - da;
+    });
+    if (!search.trim()) return sortByLastBuy(giftData);
+    const q = search.trim().toLowerCase();
+    return sortByLastBuy(giftData.filter(r =>
+      (r["股票代號"]||"").includes(q) ||
+      (r["公司名稱"]||"").toLowerCase().includes(q) ||
+      (r["紀念品"]||"").toLowerCase().includes(q) ||
+      (r["開會地點"]||"").includes(q)
+    ));
+  }, [giftData, search]);
 
   return (
     <div style={{minHeight:"100vh",background:"#0a0a0f",color:"#fff",fontFamily:"'Noto Sans TC','PingFang TC',sans-serif"}}>
